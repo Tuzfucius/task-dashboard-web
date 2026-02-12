@@ -19,9 +19,9 @@
         .card-purple { @apply bg-purple-50 border-purple-200 text-purple-800; }
         
         /* 拖拽样式 */
-        .dragging { opacity: 0.5; transform: scale(0.98); }
-        .drop-zone { @apply transition-colors duration-200; }
-        .drop-zone.drag-over { @apply bg-blue-50 ring-2 ring-blue-300; }
+        .dragging { opacity: 0.6; transform: scale(0.96) rotate(2deg); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .drop-zone { @apply transition-all duration-200; }
+        .drop-zone.drag-over { @apply bg-blue-50 ring-2 ring-blue-300 scale-[1.02]; }
         
         /* 加载动画 */
         @keyframes pulse-glow {
@@ -66,19 +66,19 @@
                 
                 <!-- 统计卡片 -->
                 <div class="flex items-center gap-4">
-                    <div class="bg-gray-50 px-4 py-2 rounded-lg">
+                    <div class="bg-gray-100 px-4 py-2 rounded-xl border border-gray-200">
                         <span class="text-xs text-gray-500 block">总任务</span>
                         <span class="text-lg font-bold text-gray-800" x-text="stats.total || 0"></span>
                     </div>
-                    <div class="bg-blue-50 px-4 py-2 rounded-lg">
+                    <div class="bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
                         <span class="text-xs text-blue-500 block">进行中</span>
                         <span class="text-lg font-bold text-blue-600" x-text="stats.in_progress || 0"></span>
                     </div>
-                    <div class="bg-green-50 px-4 py-2 rounded-lg">
+                    <div class="bg-green-50 px-4 py-2 rounded-xl border border-green-100">
                         <span class="text-xs text-green-500 block">已完成</span>
                         <span class="text-lg font-bold text-green-600" x-text="stats.completed || 0"></span>
                     </div>
-                    <div class="bg-purple-50 px-4 py-2 rounded-lg">
+                    <div class="bg-purple-50 px-4 py-2 rounded-xl border border-purple-100">
                         <span class="text-xs text-purple-500 block">完成率</span>
                         <span class="text-lg font-bold text-purple-600" x-text="(stats.completed && stats.total ? Math.round(stats.completed/stats.total*100) : 0) + '%'"></span>
                     </div>
@@ -87,11 +87,11 @@
                 <!-- 操作按钮 -->
                 <div class="flex items-center gap-2">
                     <button @click="openArchive()" 
-                            class="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition flex items-center gap-1">
+                            class="px-4 py-2 text-sm bg-amber-100 text-amber-700 rounded-xl hover:bg-amber-200 transition flex items-center gap-1.5 font-medium shadow-sm hover:shadow-md">
                         📦 <span>归档</span>
                     </button>
                     <button @click="showNewTask = true" 
-                            class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition flex items-center gap-1">
+                            class="px-4 py-2 text-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition flex items-center gap-1.5 font-medium shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 hover:scale-[1.02]">
                         ➕ <span>新建</span>
                     </button>
                 </div>
@@ -108,9 +108,9 @@
                            x-model="searchQuery"
                            @input="filterTasks()"
                            placeholder="搜索任务... (Ctrl+F)"
-                           class="w-full pl-10 pr-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                           class="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm">
                     <span x-show="searchQuery" @click="searchQuery = ''; filterTasks()" 
-                          class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">✕</span>
+                          class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer transition">✕</span>
                 </div>
                 
                 <!-- 智能体筛选 -->
@@ -164,16 +164,16 @@
         <div x-show="!isLoading || tasks.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-4">
             
             <!-- 计划任务 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
+            <div class="bg-gray-100/80 rounded-2xl p-4 min-h-[500px] drop-zone backdrop-blur-sm"
                  :class="dragOver === 'planned' ? 'drag-over' : ''"
                  @dragover.prevent="dragOver = 'planned'"
                  @dragleave="dragOver = null"
                  @drop.prevent="onDrop('planned')">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        📋 计划任务 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredPlanned.length + ')'"></span>
+                        📋 <span>计划任务</span> <span class="text-sm font-normal text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full" x-text="filteredPlanned.length"></span>
                     </h2>
-                    <span x-show="dragOver === 'planned'" class="text-sm text-blue-500">📍 放置于此</span>
+                    <span x-show="dragOver === 'planned'" class="text-sm text-blue-500 bg-blue-50 px-3 py-1 rounded-full animate-pulse">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
                     <template x-for="task in filteredPlanned" :key="task.id">
@@ -182,16 +182,16 @@
                              @dragend="onDragEnd($event)"
                              @click="openTaskDetail(task)"
                              @contextmenu.prevent="showContextMenu($event, task)"
-                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition"
+                             class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] transition-all duration-200"
                              :class="'card-' + task.agent_color">
                             <div class="flex items-start justify-between mb-2">
-                                <span class="text-lg" x-text="task.agent_icon"></span>
-                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70" 
-                                      :class="'bg-' + task.agent_color + '-200'">
+                                <span class="text-xl" x-text="task.agent_icon"></span>
+                                <span class="text-xs px-2.5 py-1 rounded-full font-medium" 
+                                      :class="'bg-' + task.agent_color + '-200 text-' + task.agent_color + '-700'">
                                     <span x-text="task.agent_name"></span>
                                 </span>
                             </div>
-                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
+                            <h3 class="font-medium text-gray-800 mb-2 line-clamp-2" x-text="task.title"></h3>
                             <div class="flex items-center justify-between text-xs text-gray-500">
                                 <span x-text="task.progress"></span>
                                 <span x-text="task.owner"></span>
@@ -205,16 +205,16 @@
             </div>
 
             <!-- 进行中 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
+            <div class="bg-blue-50/80 rounded-2xl p-4 min-h-[500px] drop-zone backdrop-blur-sm"
                  :class="dragOver === 'in_progress' ? 'drag-over' : ''"
                  @dragover.prevent="dragOver = 'in_progress'"
                  @dragleave="dragOver = null"
                  @drop.prevent="onDrop('in_progress')">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        🔄 进行中 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredInProgress.length + ')'"></span>
+                        🔄 <span>进行中</span> <span class="text-sm font-normal text-blue-400 bg-blue-100 px-2 py-0.5 rounded-full" x-text="filteredInProgress.length"></span>
                     </h2>
-                    <span x-show="dragOver === 'in_progress'" class="text-sm text-blue-500">📍 放置于此</span>
+                    <span x-show="dragOver === 'in_progress'" class="text-sm text-blue-500 bg-blue-50 px-3 py-1 rounded-full animate-pulse">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
                     <template x-for="task in filteredInProgress" :key="task.id">
@@ -223,18 +223,18 @@
                              @dragend="onDragEnd($event)"
                              @click="openTaskDetail(task)"
                              @contextmenu.prevent="showContextMenu($event, task)"
-                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition"
+                             class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] transition-all duration-200"
                              :class="'card-' + task.agent_color">
                             <div class="flex items-start justify-between mb-2">
-                                <span class="text-lg" x-text="task.agent_icon"></span>
-                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70"
-                                      :class="'bg-' + task.agent_color + '-200'">
+                                <span class="text-xl" x-text="task.agent_icon"></span>
+                                <span class="text-xs px-2.5 py-1 rounded-full font-medium"
+                                      :class="'bg-' + task.agent_color + '-200 text-' + task.agent_color + '-700'">
                                     <span x-text="task.agent_name"></span>
                                 </span>
                             </div>
-                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
-                            <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
-                                <div class="h-1.5 rounded-full transition-all"
+                            <h3 class="font-medium text-gray-800 mb-2 line-clamp-2" x-text="task.title"></h3>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mb-2 overflow-hidden">
+                                <div class="h-2 rounded-full transition-all duration-500 ease-out"
                                      :class="'bg-' + task.agent_color + '-500'"
                                      :style="'width: ' + task.progress_percent + '%'"></div>
                             </div>
@@ -251,16 +251,16 @@
             </div>
 
             <!-- 已完成 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
+            <div class="bg-green-50/80 rounded-2xl p-4 min-h-[500px] drop-zone backdrop-blur-sm"
                  :class="dragOver === 'completed' ? 'drag-over' : ''"
                  @dragover.prevent="dragOver = 'completed'"
                  @dragleave="dragOver = null"
                  @drop.prevent="onDrop('completed')">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        ✅ 已完成 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredCompleted.length + ')'"></span>
+                        ✅ <span>已完成</span> <span class="text-sm font-normal text-green-400 bg-green-100 px-2 py-0.5 rounded-full" x-text="filteredCompleted.length"></span>
                     </h2>
-                    <span x-show="dragOver === 'completed'" class="text-sm text-blue-500">📍 放置于此</span>
+                    <span x-show="dragOver === 'completed'" class="text-sm text-blue-500 bg-blue-50 px-3 py-1 rounded-full animate-pulse">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
                     <template x-for="task in filteredCompleted" :key="task.id">
@@ -269,16 +269,16 @@
                              @dragend="onDragEnd($event)"
                              @click="openTaskDetail(task)"
                              @contextmenu.prevent="showContextMenu($event, task)"
-                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition opacity-75"
+                             class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:scale-[1.02] transition-all duration-200 opacity-80 hover:opacity-100"
                              :class="'card-' + task.agent_color">
                             <div class="flex items-start justify-between mb-2">
-                                <span class="text-lg" x-text="task.agent_icon"></span>
-                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70"
-                                      :class="'bg-' + task.agent_color + '-200'">
+                                <span class="text-xl" x-text="task.agent_icon"></span>
+                                <span class="text-xs px-2.5 py-1 rounded-full font-medium"
+                                      :class="'bg-' + task.agent_color + '-200 text-' + task.agent_color + '-700'">
                                     <span x-text="task.agent_name"></span>
                                 </span>
                             </div>
-                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
+                            <h3 class="font-medium text-gray-800 mb-2 line-clamp-2" x-text="task.title"></h3>
                             <div class="flex items-center justify-between text-xs text-gray-500">
                                 <span x-text="task.progress"></span>
                                 <span x-text="task.owner"></span>
@@ -295,16 +295,24 @@
 
     <!-- 详情模态框 -->
     <div x-show="showDetail" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" @click="showDetail = false"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showDetail = false"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden transform transition-all scale-100"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 transform scale-95"
+             x-transition:enter-end="opacity-100 transform scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 transform scale-100"
+             x-transition:leave-end="opacity-0 transform scale-95">
             <div class="px-6 py-4 border-b flex items-center justify-between"
                  :class="'bg-' + (currentTask?.agent_color || 'blue') + '-50'">
                 <div class="flex items-center gap-3">
-                    <span class="text-2xl" x-text="currentTask?.agent_icon"></span>
+                    <span class="text-3xl" x-text="currentTask?.agent_icon"></span>
                     <div>
-                        <h2 class="font-semibold text-lg" x-text="currentTask?.title"></h2>
-                        <div class="flex items-center gap-2 text-sm text-gray-500">
-                            <span x-text="currentTask?.agent_name"></span>
+                        <h2 class="font-semibold text-lg text-gray-800" x-text="currentTask?.title"></h2>
+                        <div class="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                            <span class="px-2 py-0.5 rounded-full"
+                                  :class="'bg-' + (currentTask?.agent_color || 'blue') + '-200 text-' + (currentTask?.agent_color || 'blue') + '-700'"
+                                  x-text="currentTask?.agent_name"></span>
                             <span>•</span>
                             <span x-text="currentTask?.owner"></span>
                             <span>•</span>
@@ -312,7 +320,7 @@
                         </div>
                     </div>
                 </div>
-                <button @click="showDetail = false" class="text-gray-400 hover:text-gray-600">
+                <button @click="showDetail = false" class="text-gray-400 hover:text-gray-600 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -320,33 +328,42 @@
             </div>
             
             <div class="p-6 overflow-y-auto max-h-[50vh]">
-                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                <div class="mb-4 p-4 bg-gray-50 rounded-xl">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm font-medium">进度</span>
-                        <span class="text-sm" x-text="currentTask?.progress + ' (' + currentTask?.progress_percent + '%)'"></span>
+                        <span class="text-sm font-medium text-gray-700">进度</span>
+                        <span class="text-sm font-bold"
+                              :class="'text-' + (currentTask?.agent_color || 'blue') + '-600'"
+                              x-text="currentTask?.progress + ' (' + currentTask?.progress_percent + '%)'"></span>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="h-2 rounded-full transition-all"
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                        <div class="h-2.5 rounded-full transition-all duration-500 ease-out"
                              :class="'bg-' + (currentTask?.agent_color || 'blue') + '-500'"
                              :style="'width: ' + currentTask?.progress_percent + '%'"></div>
                     </div>
                 </div>
                 
                 <div class="mb-4">
-                    <h3 class="text-sm font-medium text-gray-700 mb-2">当前 Phase</h3>
-                    <p class="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded" x-text="currentTask?.current_phase || '未开始'"></p>
+                    <h3 class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <span>📍</span> 当前 Phase
+                    </h3>
+                    <p class="text-sm text-gray-600 bg-blue-50 px-4 py-3 rounded-xl border border-blue-100" x-text="currentTask?.current_phase || '未开始'"></p>
                 </div>
                 
                 <div x-show="currentTask?.blocker" class="mb-4">
-                    <h3 class="text-sm font-medium text-red-700 mb-2">⚠️ 阻塞点</h3>
-                    <p class="text-sm text-red-600 bg-red-50 px-3 py-2 rounded" x-text="currentTask?.blocker"></p>
+                    <h3 class="text-sm font-medium text-red-700 mb-2 flex items-center gap-2">
+                        <span>⚠️</span> 阻塞点
+                    </h3>
+                    <p class="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl border border-red-100" x-text="currentTask?.blocker"></p>
                 </div>
                 
                 <div x-show="currentTask?.execution_records?.length > 0" class="mb-4">
-                    <h3 class="text-sm font-medium text-gray-700 mb-2">📝 执行记录</h3>
+                    <h3 class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <span>📝</span> 执行记录
+                    </h3>
                     <div class="space-y-2 max-h-32 overflow-y-auto">
                         <template x-for="record in currentTask?.execution_records" :key="record.time">
-                            <div class="text-sm bg-gray-50 px-3 py-2 rounded">
+                            <div class="text-sm bg-gray-50 px-3 py-2 rounded-lg border-l-4"
+                                 :class="'border-' + (currentTask?.agent_color || 'blue') + '-400'">
                                 <span class="text-gray-400" x-text="record.time"></span>
                                 <span class="text-gray-600 ml-2" x-text="record.action"></span>
                             </div>
@@ -355,38 +372,42 @@
                 </div>
                 
                 <div>
-                    <h3 class="text-sm font-medium text-gray-700 mb-2">内容预览</h3>
-                    <pre class="text-xs text-gray-600 bg-gray-50 p-3 rounded overflow-x-auto whitespace-pre-wrap" x-text="currentTask?.content"></pre>
+                    <h3 class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <span>📄</span> 内容预览
+                    </h3>
+                    <pre class="text-xs text-gray-600 bg-gray-50 p-4 rounded-xl overflow-x-auto whitespace-pre-wrap border" x-text="currentTask?.content"></pre>
                 </div>
             </div>
             
-            <div class="px-6 py-3 border-t bg-gray-50 flex items-center justify-between">
+            <div class="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <button @click="archiveTask(currentTask?.id)" 
-                            class="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition">
-                        📦 归档
+                            class="px-4 py-2 text-sm bg-amber-100 text-amber-700 rounded-xl hover:bg-amber-200 transition flex items-center gap-1">
+                        📦 <span>归档</span>
                     </button>
                     <button @click="deleteTask(currentTask?.id)" 
-                            class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition">
-                        🗑️ 删除
+                            class="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-xl hover:bg-red-200 transition flex items-center gap-1">
+                        🗑️ <span>删除</span>
                     </button>
                 </div>
                 <button @click="completeTask(currentTask?.id)" 
-                        class="px-4 py-1.5 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition">
-                    ✅ 标记完成
+                        class="px-5 py-2 text-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition flex items-center gap-2 shadow-lg shadow-green-500/30">
+                    ✅ <span>标记完成</span>
                 </button>
             </div>
             
             <div class="border-t p-4 bg-gray-50">
-                <h3 class="text-sm font-medium text-gray-700 mb-2">💬 任务对话</h3>
+                <h3 class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <span>💬</span> 任务对话
+                </h3>
                 <div class="flex gap-2">
                     <input type="text" 
                            x-model="chatMessage"
                            @keyup.enter="sendMessage()"
                            placeholder="输入消息与智能体对话... (Enter 发送)"
-                           class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                           class="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                     <button @click="sendMessage()" 
-                            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
+                            class="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition shadow-lg shadow-blue-500/30">
                         发送
                     </button>
                 </div>
@@ -426,14 +447,200 @@
 
     <div x-show="contextMenu.show" @click="contextMenu.show = false" class="fixed inset-0 z-40"></div>
 
-    <!-- 包含模态框 -->
-    <div x-include="true" x-data="{ loadModal(name) { 
-        fetch('/templates/' + name).then(r => r.text()).then(html => {
-            const div = document.createElement('div');
-            div.innerHTML = html;
-            document.body.appendChild(div);
-        });
-    }}" x-init="loadModal('modal_new_task.html'); loadModal('modal_archive.html')"></div>
+    <!-- Toast 提示 -->
+    <div x-show="toast.show" 
+         x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform translate-y-2"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 transform translate-y-0"
+         x-transition:leave-end="opacity-0 transform translate-y-2"
+         class="fixed bottom-6 right-6 z-50">
+        <div class="px-4 py-3 rounded-lg shadow-lg flex items-center gap-3"
+             :class="toast.type === 'success' ? 'bg-green-500 text-white' : toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'">
+            <span x-text="toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'"></span>
+            <span x-text="toast.message"></span>
+            <button @click="toast.show = false" class="ml-2 hover:opacity-80">✕</button>
+        </div>
+    </div>
+
+    <!-- 新建任务模态框 -->
+    <div x-show="showNewTask" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showNewTask = false"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all scale-100"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 transform scale-95"
+             x-transition:enter-end="opacity-100 transform scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 transform scale-100"
+             x-transition:leave-end="opacity-0 transform scale-95">
+            <!-- 头部 -->
+            <div class="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-500 to-indigo-600 rounded-t-2xl">
+                <h2 class="font-semibold text-lg text-white">✨ 新建任务</h2>
+                <button @click="showNewTask = false" class="text-white/80 hover:text-white transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- 表单 -->
+            <div class="p-6 space-y-4">
+                <!-- 任务标题 -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">任务标题 <span class="text-red-500">*</span></label>
+                    <input type="text" 
+                           x-model="newTask.title"
+                           @keyup.enter="createTask()"
+                           placeholder="输入任务标题..."
+                           class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                </div>
+                
+                <!-- 负责人 -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">负责人</label>
+                    <input type="text" 
+                           x-model="newTask.owner"
+                           placeholder="输入负责人..."
+                           class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                </div>
+                
+                <!-- 智能体选择 -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">分配智能体</label>
+                    <div class="grid grid-cols-5 gap-2">
+                        <template x-for="(icon, name) in agentOptions" :key="name">
+                            <button @click="newTask.agent = name"
+                                    class="p-2 rounded-xl border-2 transition-all duration-200"
+                                    :class="newTask.agent === name ? 
+                                        'border-blue-500 bg-blue-50 ring-2 ring-blue-200 scale-105' : 
+                                        'border-gray-200 hover:border-gray-300 hover:bg-gray-50'">
+                                <span class="text-2xl block text-center" x-text="icon"></span>
+                                <span class="text-xs block text-center mt-1 text-gray-600" x-text="name"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- 优先级 -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">优先级</label>
+                    <div class="flex gap-4">
+                        <template x-for="p in priorityOptions" :key="p.value">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" 
+                                       x-model="newTask.priority"
+                                       :value="p.value"
+                                       class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-medium" :class="'text-' + p.color + '-600'" x-text="p.label"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- 描述 -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                    <textarea x-model="newTask.description"
+                              rows="3"
+                              placeholder="添加任务描述..."
+                              class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"></textarea>
+                </div>
+            </div>
+            
+            <!-- 底部按钮 -->
+            <div class="px-6 py-4 border-t bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+                <button @click="showNewTask = false" 
+                        class="px-5 py-2.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition font-medium">
+                    取消
+                </button>
+                <button @click="createTask()" 
+                        :disabled="!newTask.title.trim() || creatingTask"
+                        class="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-500/30">
+                    <span x-show="creatingTask" class="animate-spin">⟳</span>
+                    <span x-text="creatingTask ? '创建中...' : '创建任务'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 归档模态框 -->
+    <div x-show="showArchive" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showArchive = false"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden transform transition-all scale-100"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 transform scale-95"
+             x-transition:enter-end="opacity-100 transform scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 transform scale-100"
+             x-transition:leave-end="opacity-0 transform scale-95">
+            <!-- 头部 -->
+            <div class="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-600 rounded-t-2xl">
+                <div class="flex items-center gap-3">
+                    <h2 class="font-semibold text-lg text-white">📦 归档任务</h2>
+                    <span class="bg-white/20 px-2 py-1 rounded text-sm text-white" x-text="'(' + archivedTasks.length + ')'"></span>
+                </div>
+                <button @click="showArchive = false" class="text-white/80 hover:text-white transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- 搜索 -->
+            <div class="p-4 border-b bg-gray-50">
+                <div class="relative">
+                    <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <input type="text" 
+                           x-model="archiveSearch"
+                           placeholder="搜索归档任务..."
+                           class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition">
+                </div>
+            </div>
+            
+            <!-- 归档任务列表 -->
+            <div class="p-4 overflow-y-auto max-h-[60vh]">
+                <div x-show="filteredArchived.length === 0" class="text-center py-12 text-gray-400">
+                    <span class="text-5xl block mb-3">📭</span>
+                    <span class="text-lg">暂无归档任务</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <template x-for="task in filteredArchived" :key="task.id">
+                        <div class="bg-gray-50 rounded-xl p-4 border hover:shadow-md transition-all duration-200 hover:scale-[1.02]"
+                             :class="'card-' + task.agent_color">
+                            <div class="flex items-start justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <span x-text="task.agent_icon"></span>
+                                    <span class="text-sm font-medium" x-text="task.title"></span>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button @click="restoreTask(task.id)" 
+                                            class="p-2 text-green-600 hover:bg-green-100 rounded-lg transition"
+                                            title="恢复任务">
+                                        🔄
+                                    </button>
+                                    <button @click="deleteArchivedTask(task.id)" 
+                                            class="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                                            title="永久删除">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 text-xs text-gray-500">
+                                <span x-text="task.owner"></span>
+                                <span x-text="task.progress"></span>
+                                <span>归档于 <span x-text="task.archived_at || '未知'"></span></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         function taskBoard() {
@@ -473,6 +680,7 @@
                 filteredPlanned: [],
                 filteredInProgress: [],
                 filteredCompleted: [],
+                toast: { show: false, message: '', type: 'info' },
                 
                 init() {
                     this.loadTasks();
@@ -503,6 +711,13 @@
                             this.contextMenu.show = false;
                         }
                     });
+                },
+                
+                showToast(message, type = 'info', duration = 3000) {
+                    this.toast = { show: true, message, type };
+                    setTimeout(() => {
+                        this.toast.show = false;
+                    }, duration);
                 },
                 
                 async loadTasks() {
@@ -558,12 +773,15 @@
                     if (!taskId) return;
                     if (!confirm('确定要删除这个任务吗？')) return;
                     try {
+                        this.showToast('正在删除...', 'info');
                         const res = await fetch('/api/tasks/' + taskId, { method: 'DELETE' });
                         if (!res.ok) throw new Error('删除失败');
                         this.loadTasks();
                         this.showDetail = false;
+                        this.showToast('任务已删除', 'success');
                     } catch (e) {
                         this.errorMessage = '删除失败: ' + e.message;
+                        this.showToast('删除失败: ' + e.message, 'error');
                     }
                 },
                 
@@ -571,18 +789,22 @@
                     if (!taskId) return;
                     if (!confirm('确定要归档这个任务吗？')) return;
                     try {
+                        this.showToast('正在归档...', 'info');
                         const res = await fetch('/api/tasks/archive/' + taskId, { method: 'POST' });
                         if (!res.ok) throw new Error('归档失败');
                         this.loadTasks();
                         this.showDetail = false;
+                        this.showToast('任务已归档', 'success');
                     } catch (e) {
                         this.errorMessage = '归档失败: ' + e.message;
+                        this.showToast('归档失败: ' + e.message, 'error');
                     }
                 },
                 
                 async completeTask(taskId) {
                     if (!taskId) return;
                     try {
+                        this.showToast('正在更新...', 'info');
                         const res = await fetch('/api/tasks/move/' + taskId, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -591,8 +813,10 @@
                         if (!res.ok) throw new Error('更新失败');
                         this.loadTasks();
                         this.showDetail = false;
+                        this.showToast('任务已完成 ✅', 'success');
                     } catch (e) {
                         this.errorMessage = '更新失败: ' + e.message;
+                        this.showToast('更新失败: ' + e.message, 'error');
                     }
                 },
                 
@@ -610,7 +834,9 @@
                 
                 async onDrop(status) {
                     if (!this.draggedTask) return;
+                    const statusText = { planned: '计划', in_progress: '进行中', completed: '已完成' };
                     try {
+                        this.showToast(`移动到${statusText[status]}...`, 'info');
                         const res = await fetch('/api/tasks/move/' + this.draggedTask.id, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -618,8 +844,10 @@
                         });
                         if (!res.ok) throw new Error('移动失败');
                         this.loadTasks();
+                        this.showToast(`已移至${statusText[status]}`, 'success');
                     } catch (e) {
                         this.errorMessage = '移动失败: ' + e.message;
+                        this.showToast('移动失败: ' + e.message, 'error');
                     }
                     this.draggedTask = null;
                     this.dragOver = null;
@@ -638,8 +866,10 @@
                         this.showNewTask = false;
                         this.newTask = { title: '', owner: '', agent: '老丑', priority: 'medium', description: '' };
                         this.loadTasks();
+                        this.showToast('任务创建成功 ✨', 'success');
                     } catch (e) {
                         this.errorMessage = '创建失败: ' + e.message;
+                        this.showToast('创建失败: ' + e.message, 'error');
                     } finally {
                         this.creatingTask = false;
                     }
@@ -647,23 +877,44 @@
                 
                 async openArchive() {
                     try {
+                        this.showToast('加载归档...', 'info');
                         const res = await fetch('/api/archive');
                         const data = await res.json();
                         this.archivedTasks = data.archived || [];
                         this.showArchive = true;
+                        this.showToast('归档加载完成', 'success');
                     } catch (e) {
                         this.errorMessage = '加载归档失败: ' + e.message;
+                        this.showToast('加载归档失败: ' + e.message, 'error');
                     }
                 },
                 
                 async restoreTask(taskId) {
                     try {
+                        this.showToast('正在恢复...', 'info');
                         const res = await fetch('/api/archive/' + taskId, { method: 'POST' });
                         if (!res.ok) throw new Error('恢复失败');
                         this.openArchive();
                         this.loadTasks();
+                        this.showToast('任务已恢复', 'success');
                     } catch (e) {
                         this.errorMessage = '恢复失败: ' + e.message;
+                        this.showToast('恢复失败: ' + e.message, 'error');
+                    }
+                },
+                
+                async deleteArchivedTask(taskId) {
+                    if (!taskId) return;
+                    if (!confirm('确定要永久删除这个任务吗？此操作不可恢复！')) return;
+                    try {
+                        this.showToast('正在删除...', 'info');
+                        const res = await fetch('/api/archive/' + taskId, { method: 'DELETE' });
+                        if (!res.ok) throw new Error('删除失败');
+                        this.openArchive();
+                        this.showToast('任务已永久删除', 'success');
+                    } catch (e) {
+                        this.errorMessage = '删除失败: ' + e.message;
+                        this.showToast('删除失败: ' + e.message, 'error');
                     }
                 },
                 

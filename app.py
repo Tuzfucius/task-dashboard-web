@@ -462,6 +462,20 @@ def restore_archived_task(task_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/archive/<task_id>', methods=['DELETE'])
+def delete_archived_task(task_id):
+    """永久删除归档任务"""
+    archive_path = os.path.join(ARCHIVED_DIR, f"{task_id}.md")
+    
+    if not os.path.exists(archive_path):
+        return jsonify({'error': 'Archived task not found'}), 404
+    
+    try:
+        os.remove(archive_path)
+        return jsonify({'success': True, 'message': '任务已永久删除'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/sessions/send', methods=['POST'])
 def send_to_session():
     """发送消息到 OpenClaw 会话"""
