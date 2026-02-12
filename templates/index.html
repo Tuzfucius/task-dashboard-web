@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务看板 - Task Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* 卡片颜色主题 */
+        .card-blue { @apply bg-blue-50 border-blue-200 text-blue-800; }
+        .card-red { @apply bg-red-50 border-red-200 text-red-800; }
+        .card-green { @apply bg-green-50 border-green-200 text-green-800; }
+        .card-yellow { @apply bg-yellow-50 border-yellow-200 text-yellow-800; }
+        .card-purple { @apply bg-purple-50 border-purple-200 text-purple-800; }
+        
+        /* 拖拽样式 */
+        .dragging { opacity: 0.5; }
+        .drop-zone { @apply transition-colors duration-200; }
+        .drop-zone.drag-over { @apply bg-gray-100; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen" x-data="taskBoard()" x-init="init()">
+    
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <h1 class="text-xl font-bold text-gray-800">📋 任务看板</h1>
+                <span class="text-sm text-gray-500">轻量级任务管理</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-500" x-text="'最后更新: ' + lastUpdate"></span>
+                <button @click="refreshTasks()" class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+                    🔄 刷新
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 三栏布局 -->
+    <main class="max-w-7xl mx-auto p-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- 📋 计划任务 -->
+            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px]"
+                 @dragover.prevent="dragOver = 'planned'"
+                 @dragleave="dragOver = null"
+                 @drop.prevent="onDrop('planned')">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-semibold text-gray-700 flex items-center gap-2">
+                        📋 计划任务 <span class="text-sm font-normal text-gray-500" x-text="'(' + planned.length + ')'"></span>
+                    </h2>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="task in planned" :key="task.id">
+                        <div :draggable="true"
+                             @dragstart="onDragStart($event, task)"
+                             @dragend="onDragEnd($event)"
+                             @click="openTaskDetail(task)"
+                             @contextmenu.prevent="showContextMenu($event, task)"
+                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition card-${task.agent_color}"
+                             :class="'card-' + task.agent_color">
+                            <div class="flex items-start justify-between mb-2">
+                                <span class="text-lg" x-text="task.agent_icon"></span>
+                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70" 
+                                      :class="'bg-' + task.agent_color + '-200'">
+                                    <span x-text="task.agent_name"></span>
+                                </span>
+                            </div>
+                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
+                            <div class="flex items-center justify-between text-xs text-gray-500">
+                                <span x-text="task.progress"></span>
+                                <span x-text="task.owner"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="planned.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                        暂无计划任务
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🔄 进行中 -->
+            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px]"
+                 @dragover.prevent="dragOver = 'in_progress'"
+                 @dragleave="dragOver = null"
+                 @drop.prevent="onDrop('in_progress')">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-semibold text-gray-700 flex items-center gap-2">
+                        🔄 进行中 <span class="text-sm font-normal text-gray-500" x-text="'(' + inProgress.length + ')'"></span>
+                    </h2>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="task in inProgress" :key="task.id">
+                        <div :draggable="true"
+                             @dragstart="onDragStart($event, task)"
+                             @dragend="onDragEnd($event)"
+                             @click="openTaskDetail(task)"
+                             @contextmenu.prevent="showContextMenu($event, task)"
+                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition"
+                             :class="'card-' + task.agent_color">
+                            <div class="flex items-start justify-between mb-2">
+                                <span class="text-lg" x-text="task.agent_icon"></span>
+                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70"
+                                      :class="'bg-' + task.agent_color + '-200'">
+                                    <span x-text="task.agent_name"></span>
+                                </span>
+                            </div>
+                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
+                            <!-- 进度条 -->
+                            <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                                <div class="h-1.5 rounded-full transition-all"
+                                     :class="'bg-' + task.agent_color + '-500'"
+                                     :style="'width: ' + task.progress_percent + '%'"></div>
+                            </div>
+                            <div class="flex items-center justify-between text-xs text-gray-500">
+                                <span x-text="task.progress"></span>
+                                <span x-text="task.owner"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="inProgress.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                        暂无进行中任务
+                    </div>
+                </div>
+            </div>
+
+            <!-- ✅ 已完成 -->
+            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px]"
+                 @dragover.prevent="dragOver = 'completed'"
+                 @dragleave="dragOver = null"
+                 @drop.prevent="onDrop('completed')">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-semibold text-gray-700 flex items-center gap-2">
+                        ✅ 已完成 <span class="text-sm font-normal text-gray-500" x-text="'(' + completed.length + ')'"></span>
+                    </h2>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="task in completed" :key="task.id">
+                        <div :draggable="true"
+                             @dragstart="onDragStart($event, task)"
+                             @dragend="onDragEnd($event)"
+                             @click="openTaskDetail(task)"
+                             @contextmenu.prevent="showContextMenu($event, task)"
+                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition opacity-75"
+                             :class="'card-' + task.agent_color">
+                            <div class="flex items-start justify-between mb-2">
+                                <span class="text-lg" x-text="task.agent_icon"></span>
+                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70"
+                                      :class="'bg-' + task.agent_color + '-200'">
+                                    <span x-text="task.agent_name"></span>
+                                </span>
+                            </div>
+                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
+                            <div class="flex items-center justify-between text-xs text-gray-500">
+                                <span x-text="task.progress"></span>
+                                <span x-text="task.owner"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="completed.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                        暂无已完成任务
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 详情模态框 -->
+    <div x-show="showDetail" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="showDetail = false"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+            <!-- 头部 -->
+            <div class="px-6 py-4 border-b flex items-center justify-between"
+                 :class="'bg-' + (currentTask?.agent_color || 'blue') + '-50'">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl" x-text="currentTask?.agent_icon"></span>
+                    <div>
+                        <h2 class="font-semibold text-lg" x-text="currentTask?.title"></h2>
+                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                            <span x-text="currentTask?.agent_name"></span>
+                            <span>•</span>
+                            <span x-text="currentTask?.owner"></span>
+                            <span>•</span>
+                            <span x-text="currentTask?.created_at"></span>
+                        </div>
+                    </div>
+                </div>
+                <button @click="showDetail = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- 内容 -->
+            <div class="p-6 overflow-y-auto max-h-[50vh]">
+                <!-- 进度信息 -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium">进度</span>
+                        <span class="text-sm" x-text="currentTask?.progress + ' (' + currentTask?.progress_percent + '%)'"></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="h-2 rounded-full transition-all"
+                             :class="'bg-' + (currentTask?.agent_color || 'blue') + '-500'"
+                             :style="'width: ' + currentTask?.progress_percent + '%'"></div>
+                    </div>
+                </div>
+                
+                <!-- 当前阶段 -->
+                <div class="mb-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">当前 Phase</h3>
+                    <p class="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded" x-text="currentTask?.current_phase || '未开始'"></p>
+                </div>
+                
+                <!-- 内容预览 -->
+                <div>
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">内容预览</h3>
+                    <pre class="text-xs text-gray-600 bg-gray-50 p-3 rounded overflow-x-auto" x-text="currentTask?.content"></pre>
+                </div>
+            </div>
+            
+            <!-- 对话区域 -->
+            <div class="border-t p-4 bg-gray-50">
+                <h3 class="text-sm font-medium text-gray-700 mb-2">💬 任务对话</h3>
+                <div class="flex gap-2">
+                    <input type="text" 
+                           x-model="chatMessage"
+                           @keyup.enter="sendMessage()"
+                           placeholder="输入消息与智能体对话..."
+                           class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button @click="sendMessage()" 
+                            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
+                        发送
+                    </button>
+                </div>
+                <!-- 消息列表 -->
+                <div class="mt-3 space-y-2 max-h-32 overflow-y-auto">
+                    <template x-for="msg in chatMessages" :key="msg.id">
+                        <div class="text-sm" :class="msg.isUser ? 'text-blue-600' : 'text-gray-600'">
+                            <span x-text="msg.isUser ? '👤' : '🤖'"></span>
+                            <span x-text="msg.text"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div x-show="contextMenu.show" x-cloak class="fixed z-50 bg-white rounded-lg shadow-lg border py-1 w-40"
+         :style="'left: ' + contextMenu.x + 'px; top: ' + contextMenu.y + 'px'">
+        <button @click="viewTaskDetail(); contextMenu.show = false" 
+                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
+            👁️ 查看详情
+        </button>
+        <button @click="archiveTask(); contextMenu.show = false" 
+                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
+            📦 归档
+        </button>
+        <hr class="my-1">
+        <button @click="deleteTask(); contextMenu.show = false" 
+                class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50">
+            🗑️ 删除
+        </button>
+    </div>
+
+    <!-- 点击空白关闭菜单 -->
+    <div x-show="contextMenu.show" @click="contextMenu.show = false" class="fixed inset-0 z-40"></div>
+
+    <script>
+        function taskBoard() {
+            return {
+                planned: [],
+                inProgress: [],
+                completed: [],
+                lastUpdate: '',
+                showDetail: false,
+                currentTask: null,
+                dragOver: null,
+                draggedTask: null,
+                chatMessage: '',
+                chatMessages: [],
+                contextMenu: { show: false, x: 0, y: 0, task: null },
+                
+                init() {
+                    this.loadTasks();
+                    // 5秒轮询
+                    setInterval(() => this.loadTasks(), 5000);
+                },
+                
+                async loadTasks() {
+                    try {
+                        const res = await fetch('/api/tasks');
+                        const data = await res.json();
+                        this.planned = data.planned;
+                        this.inProgress = data.in_progress;
+                        this.completed = data.completed;
+                        this.lastUpdate = new Date().toLocaleTimeString('zh-CN');
+                    } catch (e) {
+                        console.error('加载任务失败:', e);
+                    }
+                },
+                
+                refreshTasks() {
+                    this.loadTasks();
+                },
+                
+                openTaskDetail(task) {
+                    this.currentTask = task;
+                    this.showDetail = true;
+                    this.chatMessages = [];
+                },
+                
+                showContextMenu(e, task) {
+                    this.contextMenu = {
+                        show: true,
+                        x: e.clientX,
+                        y: e.clientY,
+                        task: task
+                    };
+                },
+                
+                viewTaskDetail() {
+                    if (this.contextMenu.task) {
+                        this.openTaskDetail(this.contextMenu.task);
+                    }
+                },
+                
+                async deleteTask() {
+                    if (this.contextMenu.task && confirm('确定要删除这个任务吗？')) {
+                        try {
+                            await fetch('/api/tasks/' + this.contextMenu.task.id, { method: 'DELETE' });
+                            this.loadTasks();
+                        } catch (e) {
+                            console.error('删除失败:', e);
+                        }
+                    }
+                },
+                
+                archiveTask() {
+                    // TODO: 实现归档功能
+                    alert('归档功能待实现');
+                },
+                
+                // 拖拽相关
+                onDragStart(e, task) {
+                    this.draggedTask = task;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.target.classList.add('dragging');
+                },
+                
+                onDragEnd(e) {
+                    e.target.classList.remove('dragging');
+                    this.draggedTask = null;
+                    this.dragOver = null;
+                },
+                
+                async onDrop(status) {
+                    if (this.draggedTask) {
+                        // TODO: 更新任务状态到后端
+                        console.log('移动任务到:', status, this.draggedTask.id);
+                        this.loadTasks();
+                    }
+                },
+                
+                async sendMessage() {
+                    if (!this.chatMessage.trim()) return;
+                    
+                    const msg = {
+                        id: Date.now(),
+                        text: this.chatMessage,
+                        isUser: true
+                    };
+                    this.chatMessages.push(msg);
+                    this.chatMessage = '';
+                    
+                    try {
+                        const res = await fetch('/api/sessions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                task_id: this.currentTask?.id,
+                                message: msg.text
+                            })
+                        });
+                        const data = await res.json();
+                        
+                        this.chatMessages.push({
+                            id: Date.now() + 1,
+                            text: data.message || '消息已发送',
+                            isUser: false
+                        });
+                    } catch (e) {
+                        this.chatMessages.push({
+                            id: Date.now() + 1,
+                            text: '发送失败，请重试',
+                            isUser: false
+                        });
+                    }
+                }
+            };
+        }
+    </script>
+</body>
+</html>
