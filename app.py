@@ -8,9 +8,9 @@ import re
 import json
 import shutil
 from datetime import datetime
-from flask import Flask jsonify, request
+from flask import Flask, render_template, jsonify, request
 
-app = Flask, render_template,(__name__)
+app = Flask(__name__)
 
 # 配置
 TASKS_DIR = os.environ.get('TASKS_DIR', '/home/jetson/.openclaw/workspace/memory/tasks/checklists')
@@ -76,6 +76,10 @@ def _parse_content(content, filepath=None, include_full=False):
     agent_icon = agent_match.group(1) if agent_match else '🔵'
     agent_name = agent_match.group(2) if agent_match else '老丑'
     
+    # 提取排序优先级
+    order_match = re.search(r'排序[:：]\s*(\d+)', content)
+    sort_order = int(order_match.group(1)) if order_match else 999
+    
     # 计算进度
     total_checkboxes = len(re.findall(r'^\s*-\s*\[[x ]\]', content, re.MULTILINE))
     completed_checkboxes = len(re.findall(r'^\s*-\s*\[x\]', content, re.MULTILINE))
@@ -101,6 +105,7 @@ def _parse_content(content, filepath=None, include_full=False):
         'agent_icon': agent_icon,
         'agent_name': agent_name,
         'agent_color': AGENT_COLORS.get(agent_name, 'blue'),
+        'sort_order': sort_order,
         'progress': f"{completed_checkboxes}/{total_checkboxes}",
         'progress_percent': progress,
         'current_phase': current_phase,
@@ -130,6 +135,11 @@ def get_tasks_by_status(tasks):
             in_progress.append(task)
         else:
             planned.append(task)
+    
+    # 按排序优先级排序
+    planned.sort(key=lambda x: x.get('sort_order', 999))
+    in_progress.sort(key=lambda x: x.get('sort_order', 999))
+    completed.sort(key=lambda x: x.get('sort_order', 999))
     
     return planned, in_progress, completed
 
@@ -204,6 +214,7 @@ def create_task():
     title = data.get('title', '新任务')
     owner = data.get('owner', '未分配')
     agent = data.get('agent', '老丑')
+    sort_order = data.get('sort_order', 999)
     
     # 生成任务ID
     task_id = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -216,6 +227,7 @@ def create_task():
 - 创建时间: {created_at}
 - 更新时间: {created_at}
 - 负责人: {owner}
+- 排序: {sort_order}
 - [{AGENT_ICONS.get(agent, '🔵')} {agent}]
 
 ## 任务描述
@@ -283,6 +295,14 @@ def update_task(task_id):
                     content
                 )
         
+        # 更新排序
+        if 'sort_order' in data:
+            content = re.sub(
+                r'排序[:：]\s*\d+',
+                f"排序: {data['sort_order']}",
+                content
+            )
+        
         # 更新时间
         updated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
         content = re.sub(
@@ -334,7 +354,7 @@ def archive_task(task_id):
         
         return jsonify({
             'success': True,
-            'message': f'任务已归档到 {archive_path}'
+            'message': f'任务已归档'
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -343,7 +363,7 @@ def archive_task(task_id):
 def move_task(task_id):
     """移动任务状态"""
     data = request.json
-    new_status = data.get('status', '🔄')  # planned, in_progress, completed
+    new_status = data.get('status', 'in_progress')  # planned, in_progress, completed
     
     status_map = {
         'planned': '🔄',
@@ -448,10 +468,6 @@ def send_to_session():
     data = request.json
     task_id = data.get('task_id')
     message = data.get('message')
-    session_id = data.get('session_id')
-    
-    # TODO: 实现 OpenClaw Sessions API 集成
-    # 这里可以集成 OpenClaw 的消息发送功能
     
     # 记录到任务文件
     if task_id:
@@ -464,7 +480,7 @@ def send_to_session():
             # 添加消息记录
             content = re.sub(
                 r'(## 执行记录)',
-                f'## 执行记录\n{updated_at}: [会话消息] {message}\n',
+                f'## 执行记录\n{updated_at}: [用户消息] {message}\n',
                 content
             )
             
@@ -480,7 +496,6 @@ def send_to_session():
     
     return jsonify({
         'success': True,
-        'session_id': session_id or 'default',
         'message': '消息已记录',
         'response': f'收到消息: {message}'
     })
