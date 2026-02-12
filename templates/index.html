@@ -1,293 +1,214 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>任务看板 V2 - Task Dashboard</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a',950:'#020617'}
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         [x-cloak] { display: none !important; }
-        
-        /* 卡片颜色主题 */
-        .card-blue { @apply bg-blue-50 border-blue-200 text-blue-800; }
-        .card-red { @apply bg-red-50 border-red-200 text-red-800; }
-        .card-green { @apply bg-green-50 border-green-200 text-green-800; }
-        .card-yellow { @apply bg-yellow-50 border-yellow-200 text-yellow-800; }
-        .card-purple { @apply bg-purple-50 border-purple-200 text-purple-800; }
-        
-        /* 拖拽样式 */
-        .dragging { opacity: 0.5; transform: scale(0.98); }
-        .drop-zone { @apply transition-colors duration-200; }
-        .drop-zone.drag-over { @apply bg-blue-50 ring-2 ring-blue-300; }
-        
-        /* 加载动画 */
-        @keyframes pulse-glow {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .loading-glow { animation: pulse-glow 1.5s infinite; }
-        
-        /* 骨架屏 */
-        .skeleton { @apply bg-gray-200 rounded animate-pulse; }
+        ::-webkit-scrollbar { width:6px; height:6px; }
+        ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+        .dark ::-webkit-scrollbar-thumb { background:#475569; }
+        .card-blue { @apply bg-blue-50/80 border-blue-200/50 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700/50 dark:text-blue-200; }
+        .card-red { @apply bg-red-50/80 border-red-200/50 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-200; }
+        .card-green { @apply bg-green-50/80 border-green-200/50 text-green-800 dark:bg-green-900/30 dark:border-green-700/50 dark:text-green-200; }
+        .card-yellow { @apply bg-yellow-50/80 border-yellow-200/50 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200; }
+        .card-purple { @apply bg-purple-50/80 border-purple-200/50 text-purple-800 dark:bg-purple-900/30 dark:border-purple-700/50 dark:text-purple-200; }
+        .dragging { opacity:0.5; transform:scale(0.98); }
+        .drop-zone { @apply transition-all duration-300; }
+        .drop-zone.drag-over { @apply bg-blue-50/50 dark:bg-blue-900/30 ring-2 ring-blue-400/50; }
+        @keyframes pulse-glow { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+        .loading-glow { animation:pulse-glow 1.5s infinite; }
+        .skeleton { @apply bg-gray-200/50 dark:bg-dark-700 rounded animate-pulse; }
+        .glass { background:rgba(255,255,255,0.7); backdrop-filter:blur(10px); }
+        .dark .glass { background:rgba(30,41,59,0.7); }
+        .task-card { @apply transition-all duration-300; }
+        .task-card:hover { transform:translateY(-4px) scale(1.02); box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); }
+        .dark .task-card:hover { box-shadow:0 20px 25px -5px rgba(0,0,0,0.5); }
+        .kanban-column { @apply transition-all duration-300; }
+        .kanban-column:hover { transform:translateY(-2px); }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen" x-data="taskBoard()" x-init="init()">
-    
-    <!-- 离线提示 -->
-    <div x-show="isOffline" 
-         x-cloak
-         class="fixed top-0 left-0 right-0 bg-red-500 text-white text-center py-2 text-sm z-50 flex items-center justify-center gap-2">
-        <span>📡</span>
-        <span>网络连接断开，正在尝试重连...</span>
+<body class="bg-gradient-to-br from-gray-100 via-gray-50 to-blue-50 dark:from-dark-900 dark:via-dark-800 dark:to-dark-900 min-h-screen transition-colors duration-300" x-data="taskBoard()" x-init="initTheme(); init()">
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-500/20 rounded-full blur-3xl"></div>
+        <div class="absolute top-1/3 -left-40 w-80 h-80 bg-gradient-to-br from-green-400/20 to-cyan-500/20 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-0 right-1/4 w-60 h-60 bg-gradient-to-br from-pink-400/20 to-orange-500/20 rounded-full blur-3xl"></div>
     </div>
 
-    <!-- 错误提示 -->
-    <div x-show="errorMessage" 
-         x-cloak
-         x-transition
-         class="fixed top-16 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2">
-        <span>⚠️</span>
+    <div x-show="isOffline" x-cloak x-transition class="fixed top-0 left-0 right-0 bg-gradient-to-r from-red-500 to-red-600 text-white text-center py-2.5 text-sm z-50 flex items-center justify-center gap-2">
+        <span>⚠️</span><span>网络连接断开，正在尝试重连...</span>
+    </div>
+
+    <div x-show="errorMessage" x-cloak x-transition class="fixed top-16 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2">
         <span x-text="errorMessage"></span>
-        <button @click="errorMessage = null" class="ml-2 hover:text-red-200">✕</button>
+        <button @click="errorMessage = null" class="ml-2">✕</button>
     </div>
 
-    <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+    <header class="glass shadow-lg border-b border-gray-200/50 dark:border-dark-700/50 sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-4 py-3">
-            <!-- 统计卡片 -->
             <div class="flex flex-wrap items-center justify-between gap-4 mb-3">
                 <div class="flex items-center gap-3">
-                    <h1 class="text-xl font-bold text-gray-800">📋 任务看板 V2</h1>
-                    <span class="text-sm text-gray-500">智能体任务管理</span>
-                </div>
-                
-                <!-- 统计卡片 -->
-                <div class="flex items-center gap-4">
-                    <div class="bg-gray-50 px-4 py-2 rounded-lg">
-                        <span class="text-xs text-gray-500 block">总任务</span>
-                        <span class="text-lg font-bold text-gray-800" x-text="stats.total || 0"></span>
+                    <div class="relative">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg">📋</div>
+                        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white dark:border-dark-800"></div>
                     </div>
-                    <div class="bg-blue-50 px-4 py-2 rounded-lg">
-                        <span class="text-xs text-blue-500 block">进行中</span>
-                        <span class="text-lg font-bold text-blue-600" x-text="stats.in_progress || 0"></span>
-                    </div>
-                    <div class="bg-green-50 px-4 py-2 rounded-lg">
-                        <span class="text-xs text-green-500 block">已完成</span>
-                        <span class="text-lg font-bold text-green-600" x-text="stats.completed || 0"></span>
-                    </div>
-                    <div class="bg-purple-50 px-4 py-2 rounded-lg">
-                        <span class="text-xs text-purple-500 block">完成率</span>
-                        <span class="text-lg font-bold text-purple-600" x-text="(stats.completed && stats.total ? Math.round(stats.completed/stats.total*100) : 0) + '%'"></span>
+                    <div>
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">任务看板 V2</h1>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">智能体任务管理</span>
                     </div>
                 </div>
-                
-                <!-- 操作按钮 -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-white/60 dark:bg-dark-700/60 backdrop-blur-sm px-4 py-2 rounded-xl border border-gray-200/50 dark:border-dark-600/50">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 block">总任务</span>
+                        <span class="text-lg font-bold" x-text="stats.total || 0"></span>
+                    </div>
+                    <div class="bg-blue-50/60 dark:bg-blue-900/30 backdrop-blur-sm px-4 py-2 rounded-xl border border-blue-200/50 dark:border-blue-700/50">
+                        <span class="text-xs text-blue-500 dark:text-blue-400 block">进行中</span>
+                        <span class="text-lg font-bold text-blue-600 dark:text-blue-400" x-text="stats.in_progress || 0"></span>
+                    </div>
+                    <div class="bg-green-50/60 dark:bg-green-900/30 backdrop-blur-sm px-4 py-2 rounded-xl border border-green-200/50 dark:border-green-700/50">
+                        <span class="text-xs text-green-500 dark:text-green-400 block">已完成</span>
+                        <span class="text-lg font-bold text-green-600 dark:text-green-400" x-text="stats.completed || 0"></span>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 backdrop-blur-sm px-4 py-2 rounded-xl border border-purple-200/50 dark:border-purple-700/50">
+                        <span class="text-xs text-purple-500 dark:text-purple-400 block">完成率</span>
+                        <span class="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent" x-text="(stats.completed && stats.total ? Math.round(stats.completed/stats.total*100) : 0) + '%'"></span>
+                    </div>
+                </div>
                 <div class="flex items-center gap-2">
-                    <button @click="openArchive()" 
-                            class="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition flex items-center gap-1">
-                        📦 <span>归档</span>
+                    <button @click="toggleTheme()" class="p-2 rounded-xl bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 transition-all duration-300 shadow-sm hover:shadow-md group" title="切换主题">
+                        <svg x-show="!isDark" class="w-5 h-5 text-amber-500 transition-transform duration-300 group-hover:rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg x-show="isDark" x-cloak class="w-5 h-5 text-blue-400 transition-transform duration-300 group-hover:-rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
                     </button>
-                    <button @click="showNewTask = true" 
-                            class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition flex items-center gap-1">
-                        ➕ <span>新建</span>
-                    </button>
+                    <button @click="openArchive()" class="px-3 py-1.5 text-sm bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 text-amber-700 dark:text-amber-300 rounded-lg hover:from-amber-200 hover:to-orange-200 transition-all duration-300 flex items-center gap-1.5 shadow-sm hover:shadow-md">📦 归档</button>
+                    <button @click="showNewTask = true" class="px-3 py-1.5 text-sm bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-300 flex items-center gap-1.5 shadow-lg hover:shadow-xl">➕ 新建</button>
                 </div>
             </div>
-            
-            <!-- 搜索和筛选 -->
             <div class="flex flex-wrap items-center gap-3">
-                <!-- 搜索框 -->
                 <div class="relative flex-1 min-w-[200px] max-w-md">
-                    <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    <input type="text" 
-                           x-model="searchQuery"
-                           @input="filterTasks()"
-                           placeholder="搜索任务... (Ctrl+F)"
-                           class="w-full pl-10 pr-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <span x-show="searchQuery" @click="searchQuery = ''; filterTasks()" 
-                          class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">✕</span>
+                    <div class="relative bg-white dark:bg-dark-700 rounded-lg">
+                        <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" x-model="searchQuery" @input="filterTasks()" placeholder="搜索任务... (Ctrl+F)" class="w-full pl-10 pr-10 py-2 text-sm bg-transparent border-0 focus:outline-none focus:ring-0 dark:text-white dark:placeholder-gray-500">
+                        <span x-show="searchQuery" @click="searchQuery = ''; filterTasks()" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">✕</span>
+                    </div>
                 </div>
-                
-                <!-- 智能体筛选 -->
-                <div class="flex items-center gap-1">
-                    <button @click="selectedAgent = null; filterTasks()"
-                            class="px-3 py-1 text-xs rounded-full transition"
-                            :class="selectedAgent === null ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'">
-                        全部
-                    </button>
+                <div class="flex items-center gap-1.5 p-1 bg-white/50 dark:bg-dark-700/50 rounded-lg">
+                    <button @click="selectedAgent = null; filterTasks()" class="px-3 py-1.5 text-xs font-medium rounded-lg transition" :class="selectedAgent === null ? 'bg-gray-700 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-600'">全部</button>
                     <template x-for="(color, agent) in agentColors" :key="agent">
-                        <button @click="selectedAgent = agent; filterTasks()"
-                                class="px-3 py-1 text-xs rounded-full transition flex items-center gap-1"
-                                :class="selectedAgent === agent ? 'bg-' + color + '-600 text-white' : 'bg-' + color + '-100 text-' + color + '-700 hover:bg-' + color + '-200'">
-                            <span x-text="agentIcons[agent] || '🔵'"></span>
-                            <span x-text="agent"></span>
+                        <button @click="selectedAgent = agent; filterTasks()" class="px-3 py-1.5 text-xs font-medium rounded-lg transition flex items-center gap-1" :class="selectedAgent === agent ? 'bg-' + color + '-600 text-white' : 'text-' + color + '-600 dark:text-' + color + '-400 hover:bg-' + color + '-50 dark:hover:bg-' + color + '-900/30'">
+                            <span x-text="agentIcons[agent] || '🔵'"></span><span x-text="agent"></span>
                         </button>
                     </template>
                 </div>
-                
-                <!-- 刷新状态 -->
-                <div class="flex items-center gap-2 ml-auto">
-                    <span x-show="isLoading" class="text-sm text-gray-500 loading-glow flex items-center gap-1">
-                        <span>⟳</span> 加载中...
-                    </span>
+                <div class="flex items-center gap-3 ml-auto">
+                    <span x-show="isLoading" class="text-sm text-gray-500 loading-glow flex items-center gap-1"><span>⟳</span> 同步中...</span>
                     <span x-show="!isLoading" class="text-sm text-gray-500" x-text="'更新: ' + lastUpdate"></span>
-                    <button @click="loadTasks()" class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition">
-                        🔄
+                    <button @click="loadTasks()" class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-dark-600 rounded transition">
+                        <svg class="w-5 h-5 transition-transform duration-500" :class="isLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     </button>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- 主内容区 -->
-    <main class="max-w-7xl mx-auto p-4">
-        <!-- 加载骨架屏 -->
+    <main class="relative max-w-7xl mx-auto p-4">
         <div x-show="isLoading && tasks.length === 0" class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <template x-for="i in 3">
-                <div class="bg-gray-200/50 rounded-xl p-4 min-h-[400px]">
-                    <div class="skeleton h-6 w-32 mb-4"></div>
-                    <div class="space-y-3">
-                        <template x-for="j in 3">
-                            <div class="skeleton h-28"></div>
-                        </template>
-                    </div>
+                <div class="bg-white/60 dark:bg-dark-800/60 backdrop-blur-sm rounded-2xl p-4 min-h-[500px] border border-gray-200/50 dark:border-dark-700/50">
+                    <div class="skeleton h-7 w-32 mb-4"></div>
+                    <div class="space-y-3"><template x-for="j in 3"><div class="skeleton h-32 rounded-xl"></div></template></div>
                 </div>
             </template>
         </div>
 
-        <!-- 三栏布局 -->
         <div x-show="!isLoading || tasks.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
             <!-- 计划任务 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
-                 :class="dragOver === 'planned' ? 'drag-over' : ''"
-                 @dragover.prevent="dragOver = 'planned'"
-                 @dragleave="dragOver = null"
-                 @drop.prevent="onDrop('planned')">
+            <div class="kanban-column bg-white/60 dark:bg-dark-800/60 backdrop-blur-sm rounded-2xl p-4 min-h-[500px] drop-zone border border-gray-200/50 dark:border-dark-700/50" :class="dragOver === 'planned' ? 'drag-over' : ''" @dragover.prevent="dragOver = 'planned'" @dragleave="dragOver = null" @drop.prevent="onDrop('planned')">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        📋 计划任务 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredPlanned.length + ')'"></span>
-                    </h2>
+                    <h2 class="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2"><span class="text-lg">📋</span> 计划任务 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredPlanned.length + ')'"></span></h2>
                     <span x-show="dragOver === 'planned'" class="text-sm text-blue-500">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
                     <template x-for="task in filteredPlanned" :key="task.id">
-                        <div :draggable="true"
-                             @dragstart="onDragStart($event, task)"
-                             @dragend="onDragEnd($event)"
-                             @click="openTaskDetail(task)"
-                             @contextmenu.prevent="showContextMenu($event, task)"
-                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition"
-                             :class="'card-' + task.agent_color">
-                            <div class="flex items-start justify-between mb-2">
+                        <div :draggable="true" @dragstart="onDragStart($event, task)" @dragend="onDragEnd($event)" @click="openTaskDetail(task)" @contextmenu.prevent="showContextMenu($event, task)" class="task-card bg-white/80 dark:bg-dark-700/80 rounded-xl shadow-sm border p-3.5 cursor-pointer" :class="'card-' + task.agent_color">
+                            <div class="flex items-start justify-between mb-2.5">
                                 <span class="text-lg" x-text="task.agent_icon"></span>
-                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70" 
-                                      :class="'bg-' + task.agent_color + '-200'">
-                                    <span x-text="task.agent_name"></span>
-                                </span>
+                                <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="'bg-' + task.agent_color + '-100 dark:bg-' + task.agent_color + '-900/50 text-' + task.agent_color + '-700 dark:text-' + task.agent_color + '-300'"><span x-text="task.agent_name"></span></span>
                             </div>
-                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
-                            <div class="flex items-center justify-between text-xs text-gray-500">
+                            <h3 class="font-medium text-sm mb-2.5 line-clamp-2 text-gray-800 dark:text-gray-100" x-text="task.title"></h3>
+                            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                                 <span x-text="task.progress"></span>
                                 <span x-text="task.owner"></span>
                             </div>
                         </div>
                     </template>
-                    <div x-show="filteredPlanned.length === 0" class="text-center py-8 text-gray-400 text-sm">
-                        暂无计划任务
-                    </div>
+                    <div x-show="filteredPlanned.length === 0" class="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">暂无计划任务</div>
                 </div>
             </div>
 
             <!-- 进行中 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
-                 :class="dragOver === 'in_progress' ? 'drag-over' : ''"
-                 @dragover.prevent="dragOver = 'in_progress'"
-                 @dragleave="dragOver = null"
-                 @drop.prevent="onDrop('in_progress')">
+            <div class="kanban-column bg-white/60 dark:bg-dark-800/60 backdrop-blur-sm rounded-2xl p-4 min-h-[500px] drop-zone border border-gray-200/50 dark:border-dark-700/50" :class="dragOver === 'in_progress' ? 'drag-over' : ''" @dragover.prevent="dragOver = 'in_progress'" @dragleave="dragOver = null" @drop.prevent="onDrop('in_progress')">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        🔄 进行中 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredInProgress.length + ')'"></span>
-                    </h2>
-                    <span x-show="dragOver === 'in_progress'" class="text-sm text-blue-500">📍 放置于此</span>
+                    <h2 class="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2"><span class="text-lg">🔄</span> 进行中 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredInProgress.length + ')'"></span></h2>
+                    <span x-show="dragOver === 'in_progress'" class="text-sm text-amber-500">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
                     <template x-for="task in filteredInProgress" :key="task.id">
-                        <div :draggable="true"
-                             @dragstart="onDragStart($event, task)"
-                             @dragend="onDragEnd($event)"
-                             @click="openTaskDetail(task)"
-                             @contextmenu.prevent="showContextMenu($event, task)"
-                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition"
-                             :class="'card-' + task.agent_color">
-                            <div class="flex items-start justify-between mb-2">
+                        <div :draggable="true" @dragstart="onDragStart($event, task)" @dragend="onDragEnd($event)" @click="openTaskDetail(task)" @contextmenu.prevent="showContextMenu($event, task)" class="task-card bg-white/80 dark:bg-dark-700/80 rounded-xl shadow-sm border p-3.5 cursor-pointer" :class="'card-' + task.agent_color">
+                            <div class="flex items-start justify-between mb-2.5">
                                 <span class="text-lg" x-text="task.agent_icon"></span>
-                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70"
-                                      :class="'bg-' + task.agent_color + '-200'">
-                                    <span x-text="task.agent_name"></span>
-                                </span>
+                                <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="'bg-' + task.agent_color + '-100 dark:bg-' + task.agent_color + '-900/50 text-' + task.agent_color + '-700 dark:text-' + task.agent_color + '-300'"><span x-text="task.agent_name"></span></span>
                             </div>
-                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
-                            <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
-                                <div class="h-1.5 rounded-full transition-all"
-                                     :class="'bg-' + task.agent_color + '-500'"
-                                     :style="'width: ' + task.progress_percent + '%'"></div>
+                            <h3 class="font-medium text-sm mb-2.5 line-clamp-2 text-gray-800 dark:text-gray-100" x-text="task.title"></h3>
+                            <div class="w-full bg-gray-200/50 dark:bg-dark-600 rounded-full h-1.5 mb-2">
+                                <div class="h-1.5 rounded-full transition-all" :class="'bg-' + task.agent_color + '-500'" :style="'width: ' + task.progress_percent + '%'"></div>
                             </div>
-                            <div class="flex items-center justify-between text-xs text-gray-500">
+                            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                                 <span x-text="task.progress"></span>
                                 <span x-text="task.owner"></span>
                             </div>
                         </div>
                     </template>
-                    <div x-show="filteredInProgress.length === 0" class="text-center py-8 text-gray-400 text-sm">
-                        暂无进行中任务
-                    </div>
+                    <div x-show="filteredInProgress.length === 0" class="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">暂无进行中任务</div>
                 </div>
             </div>
 
             <!-- 已完成 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
-                 :class="dragOver === 'completed' ? 'drag-over' : ''"
-                 @dragover.prevent="dragOver = 'completed'"
-                 @dragleave="dragOver = null"
-                 @drop.prevent="onDrop('completed')">
+            <div class="kanban-column bg-white/60 dark:bg-dark-800/60 backdrop-blur-sm rounded-2xl p-4 min-h-[500px] drop-zone border border-gray-200/50 dark:border-dark-700/50" :class="dragOver === 'completed' ? 'drag-over' : ''" @dragover.prevent="dragOver = 'completed'" @dragleave="dragOver = null" @drop.prevent="onDrop('completed')">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        ✅ 已完成 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredCompleted.length + ')'"></span>
-                    </h2>
-                    <span x-show="dragOver === 'completed'" class="text-sm text-blue-500">📍 放置于此</span>
+                    <h2 class="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2"><span class="text-lg">✅</span> 已完成 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredCompleted.length + ')'"></span></h2>
+                    <span x-show="dragOver === 'completed'" class="text-sm text-green-500">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
                     <template x-for="task in filteredCompleted" :key="task.id">
-                        <div :draggable="true"
-                             @dragstart="onDragStart($event, task)"
-                             @dragend="onDragEnd($event)"
-                             @click="openTaskDetail(task)"
-                             @contextmenu.prevent="showContextMenu($event, task)"
-                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition opacity-75"
-                             :class="'card-' + task.agent_color">
-                            <div class="flex items-start justify-between mb-2">
+                        <div :draggable="true" @dragstart="onDragStart($event, task)" @dragend="onDragEnd($event)" @click="openTaskDetail(task)" @contextmenu.prevent="showContextMenu($event, task)" class="task-card bg-white/80 dark:bg-dark-700/80 rounded-xl shadow-sm border p-3.5 cursor-pointer opacity-75" :class="'card-' + task.agent_color">
+                            <div class="flex items-start justify-between mb-2.5">
                                 <span class="text-lg" x-text="task.agent_icon"></span>
-                                <span class="text-xs px-2 py-0.5 rounded-full opacity-70"
-                                      :class="'bg-' + task.agent_color + '-200'">
-                                    <span x-text="task.agent_name"></span>
-                                </span>
+                                <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="'bg-' + task.agent_color + '-100 dark:bg-' + task.agent_color + '-900/50 text-' + task.agent_color + '-700 dark:text-' + task.agent_color + '-300'"><span x-text="task.agent_name"></span></span>
                             </div>
-                            <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
-                            <div class="flex items-center justify-between text-xs text-gray-500">
+                            <h3 class="font-medium text-sm mb-2.5 line-clamp-2 text-gray-800 dark:text-gray-100" x-text="task.title"></h3>
+                            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                                 <span x-text="task.progress"></span>
                                 <span x-text="task.owner"></span>
                             </div>
                         </div>
                     </template>
-                    <div x-show="filteredCompleted.length === 0" class="text-center py-8 text-gray-400 text-sm">
-                        暂无已完成任务
-                    </div>
+                    <div x-show="filteredCompleted.length === 0" class="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">暂无已完成任务</div>
                 </div>
             </div>
         </div>
@@ -295,15 +216,14 @@
 
     <!-- 详情模态框 -->
     <div x-show="showDetail" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" @click="showDetail = false"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-            <div class="px-6 py-4 border-b flex items-center justify-between"
-                 :class="'bg-' + (currentTask?.agent_color || 'blue') + '-50'">
+        <div class="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm" @click="showDetail = false"></div>
+        <div class="relative bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-700 flex items-center justify-between" :class="'bg-' + (currentTask?.agent_color || 'blue') + '-50/50 dark:bg-' + (currentTask?.agent_color || 'blue') + '-900/20'">
                 <div class="flex items-center gap-3">
                     <span class="text-2xl" x-text="currentTask?.agent_icon"></span>
                     <div>
-                        <h2 class="font-semibold text-lg" x-text="currentTask?.title"></h2>
-                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <h2 class="font-semibold text-lg text-gray-800 dark:text-white" x-text="currentTask?.title"></h2>
+                        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                             <span x-text="currentTask?.agent_name"></span>
                             <span>•</span>
                             <span x-text="currentTask?.owner"></span>
@@ -312,87 +232,60 @@
                         </div>
                     </div>
                 </div>
-                <button @click="showDetail = false" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
+                <button @click="showDetail = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            
             <div class="p-6 overflow-y-auto max-h-[50vh]">
-                <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                <div class="mb-4 p-4 bg-gray-50/50 dark:bg-dark-700/50 rounded-xl">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm font-medium">进度</span>
-                        <span class="text-sm" x-text="currentTask?.progress + ' (' + currentTask?.progress_percent + '%)'"></span>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">进度</span>
+                        <span class="text-sm text-gray-600 dark:text-gray-400" x-text="currentTask?.progress + ' (' + currentTask?.progress_percent + '%)'"></span>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="h-2 rounded-full transition-all"
-                             :class="'bg-' + (currentTask?.agent_color || 'blue') + '-500'"
-                             :style="'width: ' + currentTask?.progress_percent + '%'"></div>
+                    <div class="w-full bg-gray-200/50 dark:bg-dark-600 rounded-full h-2">
+                        <div class="h-2 rounded-full transition-all" :class="'bg-' + (currentTask?.agent_color || 'blue') + '-500'" :style="'width: ' + currentTask?.progress_percent + '%'"></div>
                     </div>
                 </div>
-                
                 <div class="mb-4">
-                    <h3 class="text-sm font-medium text-gray-700 mb-2">当前 Phase</h3>
-                    <p class="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded" x-text="currentTask?.current_phase || '未开始'"></p>
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">当前 Phase</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/20 px-3 py-2 rounded-lg" x-text="currentTask?.current_phase || '未开始'"></p>
                 </div>
-                
                 <div x-show="currentTask?.blocker" class="mb-4">
-                    <h3 class="text-sm font-medium text-red-700 mb-2">⚠️ 阻塞点</h3>
-                    <p class="text-sm text-red-600 bg-red-50 px-3 py-2 rounded" x-text="currentTask?.blocker"></p>
+                    <h3 class="text-sm font-medium text-red-700 dark:text-red-400 mb-2">⚠️ 阻塞点</h3>
+                    <p class="text-sm text-red-600 dark:text-red-300 bg-red-50/50 dark:bg-red-900/20 px-3 py-2 rounded-lg" x-text="currentTask?.blocker"></p>
                 </div>
-                
                 <div x-show="currentTask?.execution_records?.length > 0" class="mb-4">
-                    <h3 class="text-sm font-medium text-gray-700 mb-2">📝 执行记录</h3>
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">📝 执行记录</h3>
                     <div class="space-y-2 max-h-32 overflow-y-auto">
                         <template x-for="record in currentTask?.execution_records" :key="record.time">
-                            <div class="text-sm bg-gray-50 px-3 py-2 rounded">
+                            <div class="text-sm bg-gray-50/50 dark:bg-dark-700/50 px-3 py-2 rounded-lg">
                                 <span class="text-gray-400" x-text="record.time"></span>
-                                <span class="text-gray-600 ml-2" x-text="record.action"></span>
+                                <span class="text-gray-600 dark:text-gray-400 ml-2" x-text="record.action"></span>
                             </div>
                         </template>
                     </div>
                 </div>
-                
                 <div>
-                    <h3 class="text-sm font-medium text-gray-700 mb-2">内容预览</h3>
-                    <pre class="text-xs text-gray-600 bg-gray-50 p-3 rounded overflow-x-auto whitespace-pre-wrap" x-text="currentTask?.content"></pre>
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">内容预览</h3>
+                    <pre class="text-xs text-gray-600 dark:text-gray-400 bg-gray-50/50 dark:bg-dark-700/50 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap" x-text="currentTask?.content"></pre>
                 </div>
             </div>
-            
-            <div class="px-6 py-3 border-t bg-gray-50 flex items-center justify-between">
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-dark-700 bg-gray-50/50 dark:bg-dark-700/50 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <button @click="archiveTask(currentTask?.id)" 
-                            class="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition">
-                        📦 归档
-                    </button>
-                    <button @click="deleteTask(currentTask?.id)" 
-                            class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition">
-                        🗑️ 删除
-                    </button>
+                    <button @click="archiveTask(currentTask?.id)" class="px-3 py-1.5 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition">📦 归档</button>
+                    <button @click="deleteTask(currentTask?.id)" class="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition">🗑️ 删除</button>
                 </div>
-                <button @click="completeTask(currentTask?.id)" 
-                        class="px-4 py-1.5 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition">
-                    ✅ 标记完成
-                </button>
+                <button @click="completeTask(currentTask?.id)" class="px-4 py-1.5 text-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition shadow-lg">✅ 标记完成</button>
             </div>
-            
-            <div class="border-t p-4 bg-gray-50">
-                <h3 class="text-sm font-medium text-gray-700 mb-2">💬 任务对话</h3>
+            <div class="border-t border-gray-200 dark:border-dark-700 p-4 bg-gray-50/50 dark:bg-dark-700/50">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">💬 任务对话</h3>
                 <div class="flex gap-2">
-                    <input type="text" 
-                           x-model="chatMessage"
-                           @keyup.enter="sendMessage()"
-                           placeholder="输入消息与智能体对话... (Enter 发送)"
-                           class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <button @click="sendMessage()" 
-                            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
-                        发送
-                    </button>
+                    <input type="text" x-model="chatMessage" @keyup.enter="sendMessage()" placeholder="输入消息与智能体对话..." class="flex-1 px-4 py-2 bg-white dark:bg-dark-600 border border-gray-200 dark:border-dark-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                    <button @click="sendMessage()" class="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition shadow-lg">发送</button>
                 </div>
                 <div class="mt-3 space-y-2 max-h-32 overflow-y-auto">
                     <template x-for="msg in chatMessages" :key="msg.id">
-                        <div class="text-sm" :class="msg.isUser ? 'text-blue-600' : 'text-gray-600'">
+                        <div class="text-sm" :class="msg.isUser ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'">
                             <span x-text="msg.isUser ? '👤' : '🤖'"></span>
                             <span x-text="msg.text"></span>
                         </div>
@@ -403,65 +296,37 @@
     </div>
 
     <!-- 右键菜单 -->
-    <div x-show="contextMenu.show" x-cloak class="fixed z-50 bg-white rounded-lg shadow-lg border py-1 w-44"
-         :style="'left: ' + contextMenu.x + 'px; top: ' + contextMenu.y + 'px'">
-        <button @click="viewTaskDetail(); contextMenu.show = false" 
-                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2">
-            👁️ <span>查看详情</span>
-        </button>
-        <button @click="completeTask(contextMenu.task?.id); contextMenu.show = false" 
-                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2">
-            ✅ <span>标记完成</span>
-        </button>
-        <button @click="archiveTask(contextMenu.task?.id); contextMenu.show = false" 
-                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2">
-            📦 <span>归档</span>
-        </button>
-        <hr class="my-1">
-        <button @click="deleteTask(contextMenu.task?.id); contextMenu.show = false" 
-                class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-            🗑️ <span>删除</span>
-        </button>
+    <div x-show="contextMenu.show" x-cloak class="fixed z-50 bg-white dark:bg-dark-700 rounded-xl shadow-xl border border-gray-200 dark:border-dark-600 py-1.5 w-48" :style="'left: ' + contextMenu.x + 'px; top: ' + contextMenu.y + 'px'">
+        <button @click="viewTaskDetail(); contextMenu.show = false" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-600 flex items-center gap-2">👁️ <span>查看详情</span></button>
+        <button @click="completeTask(contextMenu.task?.id); contextMenu.show = false" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-600 flex items-center gap-2">✅ <span>标记完成</span></button>
+        <button @click="archiveTask(contextMenu.task?.id); contextMenu.show = false" class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-600 flex items-center gap-2">📦 <span>归档</span></button>
+        <hr class="my-1 border-gray-200 dark:border-dark-600">
+        <button @click="deleteTask(contextMenu.task?.id); contextMenu.show = false" class="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">🗑️ <span>删除</span></button>
     </div>
-
     <div x-show="contextMenu.show" @click="contextMenu.show = false" class="fixed inset-0 z-40"></div>
 
-    <!-- 包含模态框 -->
-    <div x-include="true" x-data="{ loadModal(name) { 
-        fetch('/templates/' + name).then(r => r.text()).then(html => {
-            const div = document.createElement('div');
-            div.innerHTML = html;
-            document.body.appendChild(div);
-        });
-    }}" x-init="loadModal('modal_new_task.html'); loadModal('modal_archive.html')"></div>
+    <div x-include="true" x-data="{ loadModal(name) { fetch('/templates/' + name).then(r => r.text()).then(html => { const div = document.createElement('div'); div.innerHTML = html; document.body.appendChild(div); }); } }" x-init="loadModal('modal_new_task.html'); loadModal('modal_archive.html')"></div>
 
     <script>
         function taskBoard() {
             return {
-                tasks: [],
-                planned: [],
-                inProgress: [],
-                completed: [],
-                archivedTasks: [],
-                stats: {},
-                lastUpdate: '',
-                isLoading: false,
-                isOffline: false,
-                errorMessage: null,
-                searchQuery: '',
-                selectedAgent: null,
-                showDetail: false,
-                currentTask: null,
-                chatMessage: '',
-                chatMessages: [],
-                dragOver: null,
-                draggedTask: null,
+                isDark: localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches),
+                initTheme() {
+                    if (this.isDark) { document.documentElement.classList.add('dark'); } else { document.documentElement.classList.remove('dark'); }
+                },
+                toggleTheme() {
+                    this.isDark = !this.isDark;
+                    localStorage.setItem('theme', this.isDark ? 'dark' : 'light');
+                    if (this.isDark) { document.documentElement.classList.add('dark'); } else { document.documentElement.classList.remove('dark'); }
+                },
+                tasks: [], planned: [], inProgress: [], completed: [], archivedTasks: [], stats: {},
+                lastUpdate: '', isLoading: false, isOffline: false, errorMessage: null,
+                searchQuery: '', selectedAgent: null, showDetail: false, currentTask: null,
+                chatMessage: '', chatMessages: [], dragOver: null, draggedTask: null,
                 contextMenu: { show: false, x: 0, y: 0, task: null },
-                showNewTask: false,
-                creatingTask: false,
+                showNewTask: false, creatingTask: false,
                 newTask: { title: '', owner: '', agent: '老丑', priority: 'medium', description: '' },
-                showArchive: false,
-                archiveSearch: '',
+                showArchive: false, archiveSearch: '',
                 agentColors: { '老丑': 'blue', '钮码': 'red', '丑牛': 'green', '子鼠': 'yellow', '舆探': 'purple' },
                 agentIcons: { '老丑': '🔵', '钮码': '🔴', '丑牛': '🟢', '子鼠': '🟡', '舆探': '🟣' },
                 priorityOptions: [
