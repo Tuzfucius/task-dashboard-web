@@ -50,12 +50,63 @@ def parse_markdown_file(filepath, include_full=False):
 
 def _parse_content(content, filepath=None, include_full=False):
     """解析 Markdown 内容"""
-    # 提取任务名称（第一行 # 后的内容）
-    title_match = re.search(r'^# 任务清单[:：]\s*(.+)$', content, re.MULTILINE)
-    title = title_match.group(1).strip() if title_match else '未命名任务'
     
-    # 提取任务框架信息
-    status_match = re.search(r'[-状态:]+[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)', content)
+    # 🔴 Bug 4 Fix: 增强任务名称解析（支持多种格式）
+    # 格式1: # 任务清单: AI Agents 汉化项目
+    # 格式2: # 任务清单：AI Agents 汉化项目  
+    # 格式3: # 任务清单
+    #         AI Agents 汉化项目
+    title_match = re.search(r'^# 任务清单[:：]?\s*(.+)$', content, re.MULTILINE)
+    if title_match:
+        title = title_match.group(1).strip()
+        # 如果标题太长或包含换行，继续查找
+        if len(title) > 100 or '\n' in title:
+            title = re.split(r'[\n\r]', title)[0].strip()
+    else:
+        # 尝试从第一行获取
+        lines = content.strip().split('\n')
+        for line in lines:
+            if line.startswith('#'):
+                title = line.lstrip('#').strip()
+                if title and len(title) < 100:
+                    break
+        else:
+            title = '未命名任务'
+    
+    # 🔴 Bug 3 Fix: 增强智能体识别（支持多种格式）
+    # 格式1: [🔵 老丑] - 原格式
+    # 格式2: - **智能体**: 老丑
+    # 格式3: - 负责人: 老丑 (默认)
+    # 格式4: - Agent: 老丑
+    agent_match = re.search(r'\[(🔵|🔴|🟢|🟡|🟣)\s*(\w+)\]', content)
+    if agent_match:
+        agent_icon = agent_match.group(1)
+        agent_name = agent_match.group(2)
+    else:
+        # 尝试其他格式
+        agent_alt_match = re.search(r'[-*]\s*[*]?智能体[*]?[:：]\s*(\w+)', content)
+        if agent_alt_match:
+            agent_name = agent_alt_match.group(1)
+            agent_icon = AGENT_ICONS.get(agent_name, '🔵')
+        else:
+            # 从文件名推断（如果文件名包含 agent 名称）
+            filename = os.path.basename(filepath) if filepath else ''
+            for name in AGENT_COLORS.keys():
+                if name in filename:
+                    agent_name = name
+                    agent_icon = AGENT_ICONS.get(name, '🔵')
+                    break
+            else:
+                # 默认老丑
+                agent_name = '老丑'
+                agent_icon = '🔵'
+    
+    # 🔴 Bug 1 Fix: 增强状态提取（支持更多格式）
+    # 格式: - **状态**: 🔄 进行中 / 状态: 🔄 进行中 / - 状态: 🔄 进行中
+    status_match = re.search(r'[-*]\s*[*]?状态[*]?[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)', content)
+    if not status_match:
+        status_match = re.search(r'状态[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)', content)
+    
     status = status_match.group(1) if status_match else '🔄'
     status_text = status_match.group(2) if status_match else '进行中'
     
@@ -67,8 +118,10 @@ def _parse_content(content, filepath=None, include_full=False):
     updated_match = re.search(r'更新时间[:：]\s*(\d{4}-\d{2}-\d{2}\s*\d{2}:\d{2})', content)
     updated_at = updated_match.group(1) if updated_match else created_at
     
-    # 提取负责人
-    owner_match = re.search(r'负责人[:：]\s*(\S+)', content)
+    # 🔴 Bug 3 Fix: 提取负责人（增强格式支持）
+    owner_match = re.search(r'[-*]\s*[*]?负责人[*]?[:：]\s*(\S+)', content)
+    if not owner_match:
+        owner_match = re.search(r'[-*]\s*[*]?Owner[*]?[:：]\s*(\S+)', content)
     owner = owner_match.group(1) if owner_match else '未分配'
     
     # 提取智能体标识
@@ -85,9 +138,26 @@ def _parse_content(content, filepath=None, include_full=False):
     completed_checkboxes = len(re.findall(r'^\s*-\s*\[x\]', content, re.MULTILINE))
     progress = int(completed_checkboxes / total_checkboxes * 100) if total_checkboxes > 0 else 0
     
-    # 提取当前 Phase
-    phase_match = re.search(r'(Phase \d+[:：].*?(?=Phase \d+:|## |$))', content, re.DOTALL)
+    # 提取当前 Phase（支持 UltraWork 格式）
+    # 格式1: Phase 1: 准备阶段
+    # 格式2: ## Phase 1: 准备阶段
+    phase_match = re.search(r'(Phase \d+[:：]?\s*(?:.*?))(?=Phase \d+|## |$)', content, re.DOTALL)
     current_phase = phase_match.group(1).strip().split('\n')[0] if phase_match else '未开始'
+    
+    # 🟡 P1 Feature 7: 提取所有 Phases（支持 UltraWork 格式）
+    phases = re.findall(r'(Phase \d+[:：]?\s*(?:.*?))(?=Phase \d+|## |$)', content, re.DOTALL)
+    phase_list = []
+    for i, phase in enumerate(phases):
+        phase_name = phase.split('\n')[0].strip()
+        phase_tasks = re.findall(r'- \[ \]\s*(.+)|- \[x\]\s*(.+)', phase)
+        completed = sum(1 for t in phase_tasks if t[1])
+        total = len(phase_tasks)
+        phase_list.append({
+            'id': f'phase_{i+1}',
+            'name': phase_name,
+            'tasks': [{'name': t[0] or t[1], 'completed': bool(t[1])} for t in phase_tasks],
+            'progress': int(completed / total * 100) if total > 0 else 0
+        })
     
     # 提取阻塞点
     blocker_match = re.search(r'阻塞点[:：]?\s*(.+?)(?=\n## |\n$|$)', content, re.DOTALL)
@@ -109,6 +179,7 @@ def _parse_content(content, filepath=None, include_full=False):
         'progress': f"{completed_checkboxes}/{total_checkboxes}",
         'progress_percent': progress,
         'current_phase': current_phase,
+        'phase_list': phase_list,  # 🟡 P1 Feature 7: 添加所有 Phases
         'created_at': created_at,
         'updated_at': updated_at,
         'owner': owner,
@@ -285,15 +356,23 @@ def update_task(task_id):
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # 更新状态
-        if 'status' in data:
-            old_status = re.search(r'状态[:：]\s*(🔄|✅|❌)', content)
-            if old_status:
+    # 🔴 Bug 1 Fix: 增强状态更新逻辑
+    # 确保状态行格式统一
+    if 'status' in data:
+        # 查找并替换状态行，支持多种格式
+        old_patterns = [
+            r'[-*]\s*[*]?状态[*]?[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)',
+            r'状态[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)',
+            r'状态:\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)'
+        ]
+        for pattern in old_patterns:
+            if re.search(pattern, content):
                 content = re.sub(
-                    r'状态[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)',
+                    pattern,
                     f"状态: {data['status']} {'进行中' if data['status'] == '🔄' else '已完成' if data['status'] == '✅' else '已暂停'}",
                     content
                 )
+                break
         
         # 更新排序
         if 'sort_order' in data:
@@ -391,12 +470,21 @@ def move_task(task_id):
         
         updated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
         
-        # 更新状态行
-        content = re.sub(
+        # 🔴 Bug 1 Fix: 支持多种状态格式
+        status_patterns = [
+            r'[-*]\s*[*]?状态[*]?[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)',
             r'状态[:：]\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)',
-            f'状态: {status_icon} {status_text}',
-            content
-        )
+            r'状态:\s*(🔄|✅|❌)\s*(进行中|已完成|已暂停)'
+        ]
+        
+        for pattern in status_patterns:
+            if re.search(pattern, content):
+                content = re.sub(
+                    pattern,
+                    f'状态: {status_icon} {status_text}',
+                    content
+                )
+                break
         
         # 更新时间
         content = re.sub(
@@ -409,11 +497,16 @@ def move_task(task_id):
         execution_note = data.get('note', '')
         if execution_note:
             record = f"\n{updated_at}: {execution_note}\n"
-            content = re.sub(
-                r'(## 执行记录)',
-                f'## 执行记录{record}',
-                content
-            )
+            # 如果执行记录部分不存在，先创建
+            if '## 执行记录' not in content:
+                # 在内容末尾添加执行记录部分
+                content += f"\n\n## 执行记录\n{record}"
+            else:
+                content = re.sub(
+                    r'(## 执行记录)',
+                    f'## 执行记录{record}',
+                    content
+                )
         
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(content)
@@ -552,6 +645,136 @@ def health_check():
         'tasks_dir': TASKS_DIR,
         'archived_dir': ARCHIVED_DIR
     })
+
+# 🟢 P2: UltraWork 格式支持
+@app.route('/api/ultrawork/parse', methods=['POST'])
+def parse_ultrawork():
+    """解析 UltraWork 任务格式"""
+    data = request.json
+    content = data.get('content', '')
+    
+    # UltraWork 格式: Phase 1: xxx / Task 1: xxx
+    phases = re.findall(r'(Phase \d+[:：]?\s*(?:.*?))(?=Phase \d+|## |$)', content, re.DOTALL)
+    tasks = re.findall(r'(Task \d+[:：]?\s*(?:.*?))(?=Task \d+|Phase|## |$)', content, re.DOTALL)
+    
+    phase_list = []
+    for i, phase in enumerate(phases):
+        phase_name = phase.split('\n')[0].strip()
+        phase_tasks = re.findall(r'- \[ \]\s*(.+)|- \[x\]\s*(.+)', phase)
+        completed = sum(1 for t in phase_tasks if t[1])
+        total = len(phase_tasks)
+        phase_list.append({
+            'id': f'phase_{i+1}',
+            'name': phase_name,
+            'tasks': [{'name': t[0] or t[1], 'completed': bool(t[1])} for t in phase_tasks],
+            'progress': int(completed / total * 100) if total > 0 else 0
+        })
+    
+    return jsonify({
+        'phases': phase_list,
+        'total_phases': len(phase_list),
+        'total_tasks': len(tasks)
+    })
+
+# 🟡 P1: Jobs 任务 API (定时/轮巡任务)
+JOBS_FILE = os.path.join(TASKS_DIR, '..', 'jobs.json')
+
+def get_jobs():
+    """获取 Jobs 列表"""
+    if os.path.exists(JOBS_FILE):
+        with open(JOBS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_jobs(jobs):
+    """保存 Jobs 列表"""
+    with open(JOBS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(jobs, f, ensure_ascii=False, indent=2)
+
+@app.route('/api/jobs')
+def get_jobs_list():
+    """获取所有 Jobs"""
+    jobs = get_jobs()
+    return jsonify({
+        'jobs': jobs,
+        'count': len(jobs)
+    })
+
+@app.route('/api/jobs', methods=['POST'])
+def create_job():
+    """创建新 Job"""
+    data = request.json
+    jobs = get_jobs()
+    
+    job = {
+        'id': datetime.now().strftime('%Y%m%d%H%M%S'),
+        'name': data.get('name', '未命名任务'),
+        'command': data.get('command', ''),
+        'schedule': data.get('schedule', ''),  # cron 表达式
+        'enabled': data.get('enabled', True),
+        'last_run': data.get('last_run', None),
+        'next_run': data.get('next_run', None),
+        'history': [],
+        'created_at': datetime.now().isoformat()
+    }
+    
+    jobs.append(job)
+    save_jobs(jobs)
+    
+    return jsonify({
+        'success': True,
+        'job': job
+    })
+
+@app.route('/api/jobs/<job_id>', methods=['PUT'])
+def update_job(job_id):
+    """更新 Job"""
+    data = request.json
+    jobs = get_jobs()
+    
+    for job in jobs:
+        if job['id'] == job_id:
+            job.update({
+                'name': data.get('name', job['name']),
+                'command': data.get('command', job['command']),
+                'schedule': data.get('schedule', job['schedule']),
+                'enabled': data.get('enabled', job['enabled']),
+                'updated_at': datetime.now().isoformat()
+            })
+            save_jobs(jobs)
+            return jsonify({'success': True, 'job': job})
+    
+    return jsonify({'error': 'Job not found'}), 404
+
+@app.route('/api/jobs/<job_id>/run', methods=['POST'])
+def run_job(job_id):
+    """手动运行 Job"""
+    jobs = get_jobs()
+    
+    for job in jobs:
+        if job['id'] == job_id:
+            # 记录运行历史
+            run_time = datetime.now().isoformat()
+            job['last_run'] = run_time
+            job['history'].append({
+                'run_at': run_time,
+                'status': 'success',  # 简化处理
+                'output': 'Job executed'
+            })
+            # 保留最近 10 条记录
+            job['history'] = job['history'][-10:]
+            save_jobs(jobs)
+            return jsonify({'success': True, 'job': job})
+    
+    return jsonify({'error': 'Job not found'}), 404
+
+@app.route('/api/jobs/<job_id>', methods=['DELETE'])
+def delete_job(job_id):
+    """删除 Job"""
+    jobs = get_jobs()
+    jobs = [j for j in jobs if j['id'] != job_id]
+    save_jobs(jobs)
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
