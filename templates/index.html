@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>任务看板 - Task Dashboard</title>
+    <title>任务看板 V2 - Task Dashboard</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js -->
@@ -19,51 +19,170 @@
         .card-purple { @apply bg-purple-50 border-purple-200 text-purple-800; }
         
         /* 拖拽样式 */
-        .dragging { opacity: 0.5; }
+        .dragging { opacity: 0.5; transform: scale(0.98); }
         .drop-zone { @apply transition-colors duration-200; }
-        .drop-zone.drag-over { @apply bg-gray-100; }
+        .drop-zone.drag-over { @apply bg-blue-50 ring-2 ring-blue-300; }
+        
+        /* 加载动画 */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .loading-glow { animation: pulse-glow 1.5s infinite; }
+        
+        /* 骨架屏 */
+        .skeleton { @apply bg-gray-200 rounded animate-pulse; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen" x-data="taskBoard()" x-init="init()">
     
+    <!-- 离线提示 -->
+    <div x-show="isOffline" 
+         x-cloak
+         class="fixed top-0 left-0 right-0 bg-red-500 text-white text-center py-2 text-sm z-50 flex items-center justify-center gap-2">
+        <span>📡</span>
+        <span>网络连接断开，正在尝试重连...</span>
+    </div>
+
+    <!-- 错误提示 -->
+    <div x-show="errorMessage" 
+         x-cloak
+         x-transition
+         class="fixed top-16 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2">
+        <span>⚠️</span>
+        <span x-text="errorMessage"></span>
+        <button @click="errorMessage = null" class="ml-2 hover:text-red-200">✕</button>
+    </div>
+
     <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <h1 class="text-xl font-bold text-gray-800">📋 任务看板</h1>
-                <span class="text-sm text-gray-500">轻量级任务管理</span>
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <!-- 统计卡片 -->
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-3">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-xl font-bold text-gray-800">📋 任务看板 V2</h1>
+                    <span class="text-sm text-gray-500">智能体任务管理</span>
+                </div>
+                
+                <!-- 统计卡片 -->
+                <div class="flex items-center gap-4">
+                    <div class="bg-gray-50 px-4 py-2 rounded-lg">
+                        <span class="text-xs text-gray-500 block">总任务</span>
+                        <span class="text-lg font-bold text-gray-800" x-text="stats.total || 0"></span>
+                    </div>
+                    <div class="bg-blue-50 px-4 py-2 rounded-lg">
+                        <span class="text-xs text-blue-500 block">进行中</span>
+                        <span class="text-lg font-bold text-blue-600" x-text="stats.in_progress || 0"></span>
+                    </div>
+                    <div class="bg-green-50 px-4 py-2 rounded-lg">
+                        <span class="text-xs text-green-500 block">已完成</span>
+                        <span class="text-lg font-bold text-green-600" x-text="stats.completed || 0"></span>
+                    </div>
+                    <div class="bg-purple-50 px-4 py-2 rounded-lg">
+                        <span class="text-xs text-purple-500 block">完成率</span>
+                        <span class="text-lg font-bold text-purple-600" x-text="(stats.completed && stats.total ? Math.round(stats.completed/stats.total*100) : 0) + '%'"></span>
+                    </div>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="flex items-center gap-2">
+                    <button @click="openArchive()" 
+                            class="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition flex items-center gap-1">
+                        📦 <span>归档</span>
+                    </button>
+                    <button @click="showNewTask = true" 
+                            class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition flex items-center gap-1">
+                        ➕ <span>新建</span>
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center gap-4">
-                <span class="text-sm text-gray-500" x-text="'最后更新: ' + lastUpdate"></span>
-                <button @click="refreshTasks()" class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition">
-                    🔄 刷新
-                </button>
+            
+            <!-- 搜索和筛选 -->
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- 搜索框 -->
+                <div class="relative flex-1 min-w-[200px] max-w-md">
+                    <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <input type="text" 
+                           x-model="searchQuery"
+                           @input="filterTasks()"
+                           placeholder="搜索任务... (Ctrl+F)"
+                           class="w-full pl-10 pr-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <span x-show="searchQuery" @click="searchQuery = ''; filterTasks()" 
+                          class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">✕</span>
+                </div>
+                
+                <!-- 智能体筛选 -->
+                <div class="flex items-center gap-1">
+                    <button @click="selectedAgent = null; filterTasks()"
+                            class="px-3 py-1 text-xs rounded-full transition"
+                            :class="selectedAgent === null ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'">
+                        全部
+                    </button>
+                    <template x-for="(color, agent) in agentColors" :key="agent">
+                        <button @click="selectedAgent = agent; filterTasks()"
+                                class="px-3 py-1 text-xs rounded-full transition flex items-center gap-1"
+                                :class="selectedAgent === agent ? 'bg-' + color + '-600 text-white' : 'bg-' + color + '-100 text-' + color + '-700 hover:bg-' + color + '-200'">
+                            <span x-text="agentIcons[agent] || '🔵'"></span>
+                            <span x-text="agent"></span>
+                        </button>
+                    </template>
+                </div>
+                
+                <!-- 刷新状态 -->
+                <div class="flex items-center gap-2 ml-auto">
+                    <span x-show="isLoading" class="text-sm text-gray-500 loading-glow flex items-center gap-1">
+                        <span>⟳</span> 加载中...
+                    </span>
+                    <span x-show="!isLoading" class="text-sm text-gray-500" x-text="'更新: ' + lastUpdate"></span>
+                    <button @click="loadTasks()" class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition">
+                        🔄
+                    </button>
+                </div>
             </div>
         </div>
     </header>
 
-    <!-- 三栏布局 -->
+    <!-- 主内容区 -->
     <main class="max-w-7xl mx-auto p-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- 加载骨架屏 -->
+        <div x-show="isLoading && tasks.length === 0" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <template x-for="i in 3">
+                <div class="bg-gray-200/50 rounded-xl p-4 min-h-[400px]">
+                    <div class="skeleton h-6 w-32 mb-4"></div>
+                    <div class="space-y-3">
+                        <template x-for="j in 3">
+                            <div class="skeleton h-28"></div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- 三栏布局 -->
+        <div x-show="!isLoading || tasks.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-4">
             
-            <!-- 📋 计划任务 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px]"
+            <!-- 计划任务 -->
+            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
+                 :class="dragOver === 'planned' ? 'drag-over' : ''"
                  @dragover.prevent="dragOver = 'planned'"
                  @dragleave="dragOver = null"
                  @drop.prevent="onDrop('planned')">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        📋 计划任务 <span class="text-sm font-normal text-gray-500" x-text="'(' + planned.length + ')'"></span>
+                        📋 计划任务 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredPlanned.length + ')'"></span>
                     </h2>
+                    <span x-show="dragOver === 'planned'" class="text-sm text-blue-500">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
-                    <template x-for="task in planned" :key="task.id">
+                    <template x-for="task in filteredPlanned" :key="task.id">
                         <div :draggable="true"
                              @dragstart="onDragStart($event, task)"
                              @dragend="onDragEnd($event)"
                              @click="openTaskDetail(task)"
                              @contextmenu.prevent="showContextMenu($event, task)"
-                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition card-${task.agent_color}"
+                             class="bg-white rounded-lg shadow-sm border p-3 cursor-pointer hover:shadow-md transition"
                              :class="'card-' + task.agent_color">
                             <div class="flex items-start justify-between mb-2">
                                 <span class="text-lg" x-text="task.agent_icon"></span>
@@ -79,24 +198,26 @@
                             </div>
                         </div>
                     </template>
-                    <div x-show="planned.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                    <div x-show="filteredPlanned.length === 0" class="text-center py-8 text-gray-400 text-sm">
                         暂无计划任务
                     </div>
                 </div>
             </div>
 
-            <!-- 🔄 进行中 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px]"
+            <!-- 进行中 -->
+            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
+                 :class="dragOver === 'in_progress' ? 'drag-over' : ''"
                  @dragover.prevent="dragOver = 'in_progress'"
                  @dragleave="dragOver = null"
                  @drop.prevent="onDrop('in_progress')">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        🔄 进行中 <span class="text-sm font-normal text-gray-500" x-text="'(' + inProgress.length + ')'"></span>
+                        🔄 进行中 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredInProgress.length + ')'"></span>
                     </h2>
+                    <span x-show="dragOver === 'in_progress'" class="text-sm text-blue-500">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
-                    <template x-for="task in inProgress" :key="task.id">
+                    <template x-for="task in filteredInProgress" :key="task.id">
                         <div :draggable="true"
                              @dragstart="onDragStart($event, task)"
                              @dragend="onDragEnd($event)"
@@ -112,7 +233,6 @@
                                 </span>
                             </div>
                             <h3 class="font-medium text-sm mb-2 line-clamp-2" x-text="task.title"></h3>
-                            <!-- 进度条 -->
                             <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
                                 <div class="h-1.5 rounded-full transition-all"
                                      :class="'bg-' + task.agent_color + '-500'"
@@ -124,24 +244,26 @@
                             </div>
                         </div>
                     </template>
-                    <div x-show="inProgress.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                    <div x-show="filteredInProgress.length === 0" class="text-center py-8 text-gray-400 text-sm">
                         暂无进行中任务
                     </div>
                 </div>
             </div>
 
-            <!-- ✅ 已完成 -->
-            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px]"
+            <!-- 已完成 -->
+            <div class="bg-gray-200/50 rounded-xl p-4 min-h-[500px] drop-zone"
+                 :class="dragOver === 'completed' ? 'drag-over' : ''"
                  @dragover.prevent="dragOver = 'completed'"
                  @dragleave="dragOver = null"
                  @drop.prevent="onDrop('completed')">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="font-semibold text-gray-700 flex items-center gap-2">
-                        ✅ 已完成 <span class="text-sm font-normal text-gray-500" x-text="'(' + completed.length + ')'"></span>
+                        ✅ 已完成 <span class="text-sm font-normal text-gray-500" x-text="'(' + filteredCompleted.length + ')'"></span>
                     </h2>
+                    <span x-show="dragOver === 'completed'" class="text-sm text-blue-500">📍 放置于此</span>
                 </div>
                 <div class="space-y-3">
-                    <template x-for="task in completed" :key="task.id">
+                    <template x-for="task in filteredCompleted" :key="task.id">
                         <div :draggable="true"
                              @dragstart="onDragStart($event, task)"
                              @dragend="onDragEnd($event)"
@@ -163,7 +285,7 @@
                             </div>
                         </div>
                     </template>
-                    <div x-show="completed.length === 0" class="text-center py-8 text-gray-400 text-sm">
+                    <div x-show="filteredCompleted.length === 0" class="text-center py-8 text-gray-400 text-sm">
                         暂无已完成任务
                     </div>
                 </div>
@@ -175,7 +297,6 @@
     <div x-show="showDetail" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" @click="showDetail = false"></div>
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-            <!-- 头部 -->
             <div class="px-6 py-4 border-b flex items-center justify-between"
                  :class="'bg-' + (currentTask?.agent_color || 'blue') + '-50'">
                 <div class="flex items-center gap-3">
@@ -198,9 +319,7 @@
                 </button>
             </div>
             
-            <!-- 内容 -->
             <div class="p-6 overflow-y-auto max-h-[50vh]">
-                <!-- 进度信息 -->
                 <div class="mb-4 p-4 bg-gray-50 rounded-lg">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-sm font-medium">进度</span>
@@ -213,34 +332,64 @@
                     </div>
                 </div>
                 
-                <!-- 当前阶段 -->
                 <div class="mb-4">
                     <h3 class="text-sm font-medium text-gray-700 mb-2">当前 Phase</h3>
                     <p class="text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded" x-text="currentTask?.current_phase || '未开始'"></p>
                 </div>
                 
-                <!-- 内容预览 -->
+                <div x-show="currentTask?.blocker" class="mb-4">
+                    <h3 class="text-sm font-medium text-red-700 mb-2">⚠️ 阻塞点</h3>
+                    <p class="text-sm text-red-600 bg-red-50 px-3 py-2 rounded" x-text="currentTask?.blocker"></p>
+                </div>
+                
+                <div x-show="currentTask?.execution_records?.length > 0" class="mb-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-2">📝 执行记录</h3>
+                    <div class="space-y-2 max-h-32 overflow-y-auto">
+                        <template x-for="record in currentTask?.execution_records" :key="record.time">
+                            <div class="text-sm bg-gray-50 px-3 py-2 rounded">
+                                <span class="text-gray-400" x-text="record.time"></span>
+                                <span class="text-gray-600 ml-2" x-text="record.action"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
                 <div>
                     <h3 class="text-sm font-medium text-gray-700 mb-2">内容预览</h3>
-                    <pre class="text-xs text-gray-600 bg-gray-50 p-3 rounded overflow-x-auto" x-text="currentTask?.content"></pre>
+                    <pre class="text-xs text-gray-600 bg-gray-50 p-3 rounded overflow-x-auto whitespace-pre-wrap" x-text="currentTask?.content"></pre>
                 </div>
             </div>
             
-            <!-- 对话区域 -->
+            <div class="px-6 py-3 border-t bg-gray-50 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <button @click="archiveTask(currentTask?.id)" 
+                            class="px-3 py-1.5 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition">
+                        📦 归档
+                    </button>
+                    <button @click="deleteTask(currentTask?.id)" 
+                            class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition">
+                        🗑️ 删除
+                    </button>
+                </div>
+                <button @click="completeTask(currentTask?.id)" 
+                        class="px-4 py-1.5 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition">
+                    ✅ 标记完成
+                </button>
+            </div>
+            
             <div class="border-t p-4 bg-gray-50">
                 <h3 class="text-sm font-medium text-gray-700 mb-2">💬 任务对话</h3>
                 <div class="flex gap-2">
                     <input type="text" 
                            x-model="chatMessage"
                            @keyup.enter="sendMessage()"
-                           placeholder="输入消息与智能体对话..."
+                           placeholder="输入消息与智能体对话... (Enter 发送)"
                            class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <button @click="sendMessage()" 
                             class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
                         发送
                     </button>
                 </div>
-                <!-- 消息列表 -->
                 <div class="mt-3 space-y-2 max-h-32 overflow-y-auto">
                     <template x-for="msg in chatMessages" :key="msg.id">
                         <div class="text-sm" :class="msg.isUser ? 'text-blue-600' : 'text-gray-600'">
@@ -254,62 +403,141 @@
     </div>
 
     <!-- 右键菜单 -->
-    <div x-show="contextMenu.show" x-cloak class="fixed z-50 bg-white rounded-lg shadow-lg border py-1 w-40"
+    <div x-show="contextMenu.show" x-cloak class="fixed z-50 bg-white rounded-lg shadow-lg border py-1 w-44"
          :style="'left: ' + contextMenu.x + 'px; top: ' + contextMenu.y + 'px'">
         <button @click="viewTaskDetail(); contextMenu.show = false" 
-                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
-            👁️ 查看详情
+                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2">
+            👁️ <span>查看详情</span>
         </button>
-        <button @click="archiveTask(); contextMenu.show = false" 
-                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
-            📦 归档
+        <button @click="completeTask(contextMenu.task?.id); contextMenu.show = false" 
+                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2">
+            ✅ <span>标记完成</span>
+        </button>
+        <button @click="archiveTask(contextMenu.task?.id); contextMenu.show = false" 
+                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2">
+            📦 <span>归档</span>
         </button>
         <hr class="my-1">
-        <button @click="deleteTask(); contextMenu.show = false" 
-                class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50">
-            🗑️ 删除
+        <button @click="deleteTask(contextMenu.task?.id); contextMenu.show = false" 
+                class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+            🗑️ <span>删除</span>
         </button>
     </div>
 
-    <!-- 点击空白关闭菜单 -->
     <div x-show="contextMenu.show" @click="contextMenu.show = false" class="fixed inset-0 z-40"></div>
+
+    <!-- 包含模态框 -->
+    <div x-include="true" x-data="{ loadModal(name) { 
+        fetch('/templates/' + name).then(r => r.text()).then(html => {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            document.body.appendChild(div);
+        });
+    }}" x-init="loadModal('modal_new_task.html'); loadModal('modal_archive.html')"></div>
 
     <script>
         function taskBoard() {
             return {
+                tasks: [],
                 planned: [],
                 inProgress: [],
                 completed: [],
+                archivedTasks: [],
+                stats: {},
                 lastUpdate: '',
+                isLoading: false,
+                isOffline: false,
+                errorMessage: null,
+                searchQuery: '',
+                selectedAgent: null,
                 showDetail: false,
                 currentTask: null,
-                dragOver: null,
-                draggedTask: null,
                 chatMessage: '',
                 chatMessages: [],
+                dragOver: null,
+                draggedTask: null,
                 contextMenu: { show: false, x: 0, y: 0, task: null },
+                showNewTask: false,
+                creatingTask: false,
+                newTask: { title: '', owner: '', agent: '老丑', priority: 'medium', description: '' },
+                showArchive: false,
+                archiveSearch: '',
+                agentColors: { '老丑': 'blue', '钮码': 'red', '丑牛': 'green', '子鼠': 'yellow', '舆探': 'purple' },
+                agentIcons: { '老丑': '🔵', '钮码': '🔴', '丑牛': '🟢', '子鼠': '🟡', '舆探': '🟣' },
+                priorityOptions: [
+                    { value: 'high', label: '🔴 高', color: 'red' },
+                    { value: 'medium', label: '🟡 中', color: 'yellow' },
+                    { value: 'low', label: '🟢 低', color: 'green' }
+                ],
+                agentOptions: { '老丑': '🔵', '钮码': '🔴', '丑牛': '🟢', '子鼠': '🟡', '舆探': '🟣' },
+                filteredPlanned: [],
+                filteredInProgress: [],
+                filteredCompleted: [],
                 
                 init() {
                     this.loadTasks();
-                    // 5秒轮询
+                    this.setupOnlineDetection();
+                    this.setupKeyboardShortcuts();
                     setInterval(() => this.loadTasks(), 5000);
+                },
+                
+                setupOnlineDetection() {
+                    window.addEventListener('online', () => { this.isOffline = false; this.loadTasks(); });
+                    window.addEventListener('offline', () => { this.isOffline = true; });
+                },
+                
+                setupKeyboardShortcuts() {
+                    document.addEventListener('keydown', (e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+                            e.preventDefault();
+                            this.showNewTask = true;
+                        }
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+                            e.preventDefault();
+                            document.querySelector('input[placeholder*="搜索"]')?.focus();
+                        }
+                        if (e.key === 'Escape') {
+                            this.showDetail = false;
+                            this.showNewTask = false;
+                            this.showArchive = false;
+                            this.contextMenu.show = false;
+                        }
+                    });
                 },
                 
                 async loadTasks() {
                     try {
+                        this.isLoading = true;
                         const res = await fetch('/api/tasks');
+                        if (!res.ok) throw new Error('网络错误');
                         const data = await res.json();
+                        this.tasks = [...data.planned, ...data.in_progress, ...data.completed];
                         this.planned = data.planned;
                         this.inProgress = data.in_progress;
                         this.completed = data.completed;
+                        this.stats = data.stats;
                         this.lastUpdate = new Date().toLocaleTimeString('zh-CN');
+                        this.filterTasks();
                     } catch (e) {
                         console.error('加载任务失败:', e);
+                        this.errorMessage = '加载任务失败: ' + e.message;
+                        this.isOffline = true;
+                    } finally {
+                        this.isLoading = false;
                     }
                 },
                 
-                refreshTasks() {
-                    this.loadTasks();
+                filterTasks() {
+                    const query = this.searchQuery.toLowerCase();
+                    const agent = this.selectedAgent;
+                    const filter = (tasks) => tasks.filter(t => {
+                        const matchQuery = !query || t.title.toLowerCase().includes(query) || t.owner.toLowerCase().includes(query);
+                        const matchAgent = !agent || t.agent_name === agent;
+                        return matchQuery && matchAgent;
+                    });
+                    this.filteredPlanned = filter(this.planned);
+                    this.filteredInProgress = filter(this.inProgress);
+                    this.filteredCompleted = filter(this.completed);
                 },
                 
                 openTaskDetail(task) {
@@ -319,37 +547,55 @@
                 },
                 
                 showContextMenu(e, task) {
-                    this.contextMenu = {
-                        show: true,
-                        x: e.clientX,
-                        y: e.clientY,
-                        task: task
-                    };
+                    this.contextMenu = { show: true, x: e.clientX, y: e.clientY, task: task };
                 },
                 
                 viewTaskDetail() {
-                    if (this.contextMenu.task) {
-                        this.openTaskDetail(this.contextMenu.task);
+                    if (this.contextMenu.task) this.openTaskDetail(this.contextMenu.task);
+                },
+                
+                async deleteTask(taskId) {
+                    if (!taskId) return;
+                    if (!confirm('确定要删除这个任务吗？')) return;
+                    try {
+                        const res = await fetch('/api/tasks/' + taskId, { method: 'DELETE' });
+                        if (!res.ok) throw new Error('删除失败');
+                        this.loadTasks();
+                        this.showDetail = false;
+                    } catch (e) {
+                        this.errorMessage = '删除失败: ' + e.message;
                     }
                 },
                 
-                async deleteTask() {
-                    if (this.contextMenu.task && confirm('确定要删除这个任务吗？')) {
-                        try {
-                            await fetch('/api/tasks/' + this.contextMenu.task.id, { method: 'DELETE' });
-                            this.loadTasks();
-                        } catch (e) {
-                            console.error('删除失败:', e);
-                        }
+                async archiveTask(taskId) {
+                    if (!taskId) return;
+                    if (!confirm('确定要归档这个任务吗？')) return;
+                    try {
+                        const res = await fetch('/api/tasks/archive/' + taskId, { method: 'POST' });
+                        if (!res.ok) throw new Error('归档失败');
+                        this.loadTasks();
+                        this.showDetail = false;
+                    } catch (e) {
+                        this.errorMessage = '归档失败: ' + e.message;
                     }
                 },
                 
-                archiveTask() {
-                    // TODO: 实现归档功能
-                    alert('归档功能待实现');
+                async completeTask(taskId) {
+                    if (!taskId) return;
+                    try {
+                        const res = await fetch('/api/tasks/move/' + taskId, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: 'completed', note: '标记为已完成' })
+                        });
+                        if (!res.ok) throw new Error('更新失败');
+                        this.loadTasks();
+                        this.showDetail = false;
+                    } catch (e) {
+                        this.errorMessage = '更新失败: ' + e.message;
+                    }
                 },
                 
-                // 拖拽相关
                 onDragStart(e, task) {
                     this.draggedTask = task;
                     e.dataTransfer.effectAllowed = 'move';
@@ -363,46 +609,87 @@
                 },
                 
                 async onDrop(status) {
-                    if (this.draggedTask) {
-                        // TODO: 更新任务状态到后端
-                        console.log('移动任务到:', status, this.draggedTask.id);
+                    if (!this.draggedTask) return;
+                    try {
+                        const res = await fetch('/api/tasks/move/' + this.draggedTask.id, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: status, note: '拖拽变更状态' })
+                        });
+                        if (!res.ok) throw new Error('移动失败');
                         this.loadTasks();
+                    } catch (e) {
+                        this.errorMessage = '移动失败: ' + e.message;
                     }
+                    this.draggedTask = null;
+                    this.dragOver = null;
+                },
+                
+                async createTask() {
+                    if (!this.newTask.title.trim() || this.creatingTask) return;
+                    try {
+                        this.creatingTask = true;
+                        const res = await fetch('/api/tasks', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newTask)
+                        });
+                        if (!res.ok) throw new Error('创建失败');
+                        this.showNewTask = false;
+                        this.newTask = { title: '', owner: '', agent: '老丑', priority: 'medium', description: '' };
+                        this.loadTasks();
+                    } catch (e) {
+                        this.errorMessage = '创建失败: ' + e.message;
+                    } finally {
+                        this.creatingTask = false;
+                    }
+                },
+                
+                async openArchive() {
+                    try {
+                        const res = await fetch('/api/archive');
+                        const data = await res.json();
+                        this.archivedTasks = data.archived || [];
+                        this.showArchive = true;
+                    } catch (e) {
+                        this.errorMessage = '加载归档失败: ' + e.message;
+                    }
+                },
+                
+                async restoreTask(taskId) {
+                    try {
+                        const res = await fetch('/api/archive/' + taskId, { method: 'POST' });
+                        if (!res.ok) throw new Error('恢复失败');
+                        this.openArchive();
+                        this.loadTasks();
+                    } catch (e) {
+                        this.errorMessage = '恢复失败: ' + e.message;
+                    }
+                },
+                
+                get filteredArchived() {
+                    if (!this.archiveSearch) return this.archivedTasks;
+                    const query = this.archiveSearch.toLowerCase();
+                    return this.archivedTasks.filter(t => 
+                        t.title.toLowerCase().includes(query) || t.owner.toLowerCase().includes(query)
+                    );
                 },
                 
                 async sendMessage() {
                     if (!this.chatMessage.trim()) return;
-                    
-                    const msg = {
-                        id: Date.now(),
-                        text: this.chatMessage,
-                        isUser: true
-                    };
+                    const msg = { id: Date.now(), text: this.chatMessage, isUser: true };
                     this.chatMessages.push(msg);
                     this.chatMessage = '';
-                    
                     try {
-                        const res = await fetch('/api/sessions', {
+                        const res = await fetch('/api/sessions/send', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                task_id: this.currentTask?.id,
-                                message: msg.text
-                            })
+                            body: JSON.stringify({ task_id: this.currentTask?.id, message: msg.text })
                         });
                         const data = await res.json();
-                        
-                        this.chatMessages.push({
-                            id: Date.now() + 1,
-                            text: data.message || '消息已发送',
-                            isUser: false
-                        });
+                        this.chatMessages.push({ id: Date.now() + 1, text: data.message || '消息已发送', isUser: false });
                     } catch (e) {
-                        this.chatMessages.push({
-                            id: Date.now() + 1,
-                            text: '发送失败，请重试',
-                            isUser: false
-                        });
+                        this.chatMessages.push({ id: Date.now() + 1, text: '发送失败，请重试', isUser: false });
                     }
                 }
             };

@@ -1,0 +1,92 @@
+<div x-show="showNewTask" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/50" @click="showNewTask = false"></div>
+    <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <!-- 头部 -->
+        <div class="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-500 to-indigo-600 rounded-t-xl">
+            <h2 class="font-semibold text-lg text-white">✨ 新建任务</h2>
+            <button @click="showNewTask = false" class="text-white/80 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- 表单 -->
+        <div class="p-6 space-y-4">
+            <!-- 任务标题 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">任务标题</label>
+                <input type="text" 
+                       x-model="newTask.title"
+                       @keyup.enter="createTask()"
+                       placeholder="输入任务标题..."
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            
+            <!-- 负责人 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">负责人</label>
+                <input type="text" 
+                       x-model="newTask.owner"
+                       placeholder="输入负责人..."
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            
+            <!-- 智能体选择 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">分配智能体</label>
+                <div class="grid grid-cols-5 gap-2">
+                    <template x-for="(icon, name) in agentOptions" :key="name">
+                        <button @click="newTask.agent = name"
+                                class="p-2 rounded-lg border-2 transition-all"
+                                :class="newTask.agent === name ? 
+                                    'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 
+                                    'border-gray-200 hover:border-gray-300'">
+                            <span class="text-xl block text-center" x-text="icon"></span>
+                            <span class="text-xs block text-center mt-1" x-text="name"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- 优先级 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">优先级</label>
+                <div class="flex gap-3">
+                    <template x-for="p in priorityOptions" :key="p.value">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" 
+                                   x-model="newTask.priority"
+                                   :value="p.value"
+                                   class="w-4 h-4 text-blue-600">
+                            <span class="text-sm" :class="'text-' + p.color + '-600'" x-text="p.label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- 描述 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                <textarea x-model="newTask.description"
+                          rows="3"
+                          placeholder="添加任务描述..."
+                          class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+            </div>
+        </div>
+        
+        <!-- 底部按钮 -->
+        <div class="px-6 py-4 border-t bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <button @click="showNewTask = false" 
+                    class="px-4 py-2 text-gray-600 hover:text-gray-800 transition">
+                取消
+            </button>
+            <button @click="createTask()" 
+                    :disabled="!newTask.title.trim() || creatingTask"
+                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                <span x-show="creatingTask" class="animate-spin">⟳</span>
+                <span x-text="creatingTask ? '创建中...' : '创建任务'"></span>
+            </button>
+        </div>
+    </div>
+</div>
